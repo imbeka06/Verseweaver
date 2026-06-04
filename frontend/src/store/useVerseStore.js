@@ -1,6 +1,27 @@
 import { create } from 'zustand'
 import { fetchWorkspace, saveWorkspace } from '../api/workspaceApi'
 
+const AUTH_STORAGE_KEY = 'verseweaver-auth'
+const ACCOUNTS_STORAGE_KEY = 'verseweaver-accounts'
+
+const isBrowser = typeof window !== 'undefined'
+
+const readJsonStorage = (key, fallback) => {
+  if (!isBrowser) return fallback
+
+  try {
+    const value = window.localStorage.getItem(key)
+    return value ? JSON.parse(value) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+const persistJsonStorage = (key, value) => {
+  if (!isBrowser) return
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
 const initialCharacters = [
   {
     id: 'anya',
@@ -126,6 +147,15 @@ const initialSync = {
   lastError: null,
 }
 
+const initialAuth = {
+  isAuthenticated: false,
+  mode: 'login',
+  user: null,
+  error: null,
+}
+
+const persistedAuth = readJsonStorage(AUTH_STORAGE_KEY, initialAuth)
+
 const mergeById = (list, item) =>
   list.some((entry) => entry.id === item.id)
     ? list.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry))
@@ -137,6 +167,110 @@ const useVerseStore = create((set, get) => ({
   workspace: initialWorkspace,
   manuscript: initialManuscript,
   sync: initialSync,
+  auth: {
+    ...initialAuth,
+    ...persistedAuth,
+  },
+
+  setAuthMode: (mode) =>
+    set((state) => ({
+      auth: {
+        ...state.auth,
+        mode,
+        error: null,
+      },
+    })),
+
+  setAuthError: (error) =>
+    set((state) => ({
+      auth: {
+        ...state.auth,
+        error,
+      },
+    })),
+
+  login: async ({ email, password }) => {
+    const normalizedEmail = email.trim().toLowerCase()
+    const accounts = readJsonStorage(ACCOUNTS_STORAGE_KEY, [])
+
+    const account = accounts.find((entry) => entry.email === normalizedEmail)
+    if (!account || account.password !== password) {
+      set((state) => ({
+        auth: {
+          ...state.auth,
+          error: 'Invalid credentials. Please try again.',
+        },
+      }))
+      return false
+    }
+
+    const nextAuth = {
+      isAuthenticated: true,
+      mode: 'login',
+      user: {
+        name: account.name,
+        email: account.email,
+      },
+      error: null,
+    }
+
+    persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+    set({ auth: nextAuth })
+    return true
+  },
+
+  register: async ({ name, email, password }) => {
+    const normalizedEmail = email.trim().toLowerCase()
+    const displayName = name.trim()
+
+    const accounts = readJsonStorage(ACCOUNTS_STORAGE_KEY, [])
+    const alreadyExists = accounts.some((entry) => entry.email === normalizedEmail)
+
+    if (alreadyExists) {
+      set((state) => ({
+        auth: {
+          ...state.auth,
+          error: 'An account with this email already exists.',
+        },
+      }))
+      return false
+    }
+
+    const updatedAccounts = [
+      ...accounts,
+      {
+        id: crypto.randomUUID(),
+        name: displayName,
+        email: normalizedEmail,
+        password,
+      },
+    ]
+
+    persistJsonStorage(ACCOUNTS_STORAGE_KEY, updatedAccounts)
+
+    const nextAuth = {
+      isAuthenticated: true,
+      mode: 'register',
+      user: {
+        name: displayName,
+        email: normalizedEmail,
+      },
+      error: null,
+    }
+
+    persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+    set({ auth: nextAuth })
+    return true
+  },
+
+  logout: () => {
+    const nextAuth = {
+      ...initialAuth,
+      mode: 'login',
+    }
+    persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+    set({ auth: nextAuth })
+  },
 
   setActiveTab: (tab) =>
     set((state) => ({
