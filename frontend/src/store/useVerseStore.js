@@ -5,6 +5,8 @@ const initialCharacters = [
     id: 'anya',
     name: 'Anya Voss',
     role: 'Archivist Mage',
+    category: 'Fiction',
+    style: 'Animation',
     avatarImg:
       'https://images.unsplash.com/photo-1631897451010-5904f3071328?auto=format&fit=crop&w=700&q=80',
     traits: ['Intuitive', 'Relentless', 'Empathic'],
@@ -16,6 +18,8 @@ const initialCharacters = [
     id: 'kaelen',
     name: 'Kaelen Dray',
     role: 'Exiled Strategist',
+    category: 'Fiction',
+    style: 'Animation',
     avatarImg:
       'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=700&q=80',
     traits: ['Analytical', 'Reserved', 'Loyal'],
@@ -27,6 +31,8 @@ const initialCharacters = [
     id: 'elara',
     name: 'Elara Nyx',
     role: 'Shadow Ranger',
+    category: 'Fiction',
+    style: 'Animation',
     avatarImg:
       'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=80',
     traits: ['Adaptive', 'Bold', 'Guarded'],
@@ -38,11 +44,39 @@ const initialCharacters = [
     id: 'soren',
     name: 'Soren Vale',
     role: 'Oracle Engineer',
+    category: 'Fiction',
+    style: 'Animation',
     avatarImg:
       'https://images.unsplash.com/photo-1525875975471-999f65706a10?auto=format&fit=crop&w=700&q=80',
     traits: ['Inventive', 'Chaotic', 'Visionary'],
     backstory:
       'Soren builds prophetic engines that model future plot branches before they happen in-world.',
+    status: 'Drafting',
+  },
+  {
+    id: 'mara',
+    name: 'Mara Quinn',
+    role: 'Field Journalist',
+    category: 'Real',
+    style: 'Live Action',
+    avatarImg:
+      'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=700&q=80',
+    traits: ['Curious', 'Brave', 'Observant'],
+    backstory:
+      'Mara documents mythic events as they unfold, bridging grounded realism and fantastic lore.',
+    status: 'Active',
+  },
+  {
+    id: 'adrian',
+    name: 'Adrian Cole',
+    role: 'Historian',
+    category: 'Real',
+    style: 'Live Action',
+    avatarImg:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=700&q=80',
+    traits: ['Methodical', 'Calm', 'Insightful'],
+    backstory:
+      'Adrian archives true war records and cross-checks every fantastical claim against eyewitness accounts.',
     status: 'Drafting',
   },
 ]
@@ -77,6 +111,19 @@ const initialWorkspace = {
   selectedRoadmapNodeId: 'node-01',
 }
 
+const initialManuscript = {
+  title: 'Aethelia Chronicle',
+  content:
+    '<h2>Chapter 1: Ashfall Overture</h2><p>The night sky cracked open like a lantern of molten glass. Anya pressed her palm against the atlas and felt the city shift beneath her feet.</p>',
+  lastSavedAt: null,
+  wordCount: 29,
+}
+
+const initialSync = {
+  localDraftVersion: 1,
+  cloudStatus: 'Not Synced',
+}
+
 const mergeById = (list, item) =>
   list.some((entry) => entry.id === item.id)
     ? list.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry))
@@ -86,12 +133,24 @@ const useVerseStore = create((set, get) => ({
   characters: initialCharacters,
   roadmapNodes: initialRoadmapNodes,
   workspace: initialWorkspace,
+  manuscript: initialManuscript,
+  sync: initialSync,
 
   setActiveTab: (tab) =>
     set((state) => ({
       workspace: {
         ...state.workspace,
         activeTab: tab,
+      },
+    })),
+
+  jumpToWorkspace: ({ tab, characterId, roadmapNodeId }) =>
+    set((state) => ({
+      workspace: {
+        ...state.workspace,
+        activeTab: tab ?? state.workspace.activeTab,
+        selectedCharacterId: characterId ?? state.workspace.selectedCharacterId,
+        selectedRoadmapNodeId: roadmapNodeId ?? state.workspace.selectedRoadmapNodeId,
       },
     })),
 
@@ -116,6 +175,11 @@ const useVerseStore = create((set, get) => ({
       characters: mergeById(state.characters, character),
     })),
 
+  addCharacter: (character) =>
+    set((state) => ({
+      characters: [...state.characters, { ...character, id: character.id ?? crypto.randomUUID() }],
+    })),
+
   updateCharacterStatus: (characterId, status) =>
     set((state) => ({
       characters: state.characters.map((character) =>
@@ -126,6 +190,19 @@ const useVerseStore = create((set, get) => ({
   upsertRoadmapNode: (roadmapNode) =>
     set((state) => ({
       roadmapNodes: mergeById(state.roadmapNodes, roadmapNode),
+    })),
+
+  addRoadmapNode: ({ chapterTitle, plotSummary, linkedCharacterIds }) =>
+    set((state) => ({
+      roadmapNodes: [
+        ...state.roadmapNodes,
+        {
+          id: `node-${String(state.roadmapNodes.length + 1).padStart(2, '0')}`,
+          chapterTitle,
+          plotSummary,
+          linkedCharacterIds,
+        },
+      ],
     })),
 
   linkCharacterToNode: (nodeId, characterId) =>
@@ -151,6 +228,46 @@ const useVerseStore = create((set, get) => ({
     const { roadmapNodes, workspace } = get()
     return roadmapNodes.find((node) => node.id === workspace.selectedRoadmapNodeId) ?? null
   },
+
+  updateManuscript: ({ title, content }) =>
+    set((state) => {
+      const manuscriptContent = content ?? state.manuscript.content
+      const plainText = manuscriptContent.replace(/<[^>]*>/g, ' ')
+      const wordCount = plainText
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length
+
+      return {
+        manuscript: {
+          ...state.manuscript,
+          title: title ?? state.manuscript.title,
+          content: manuscriptContent,
+          wordCount,
+        },
+      }
+    }),
+
+  saveManuscript: () =>
+    set((state) => ({
+      manuscript: {
+        ...state.manuscript,
+        lastSavedAt: new Date().toISOString(),
+      },
+      sync: {
+        ...state.sync,
+        localDraftVersion: state.sync.localDraftVersion + 1,
+        cloudStatus: 'Synced Locally',
+      },
+    })),
+
+  setCloudStatus: (status) =>
+    set((state) => ({
+      sync: {
+        ...state.sync,
+        cloudStatus: status,
+      },
+    })),
 }))
 
 export default useVerseStore
