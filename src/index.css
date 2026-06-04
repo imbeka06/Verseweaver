@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Sora:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --vw-bg-main: #090d16;
+  --vw-bg-surface: #101828;
+  --vw-bg-surface-soft: #172233;
+  --vw-text-primary: #f6f7fb;
+  --vw-text-secondary: #a9b6cc;
+  --vw-border: rgba(112, 144, 196, 0.22);
+  --vw-accent: #36d6ff;
+  --vw-accent-warm: #ff9052;
+  --vw-success: #2ce5b4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Sora', sans-serif;
+  color: var(--vw-text-primary);
+  background:
+    radial-gradient(circle at 12% -10%, rgba(33, 150, 243, 0.26), transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(255, 144, 82, 0.2), transparent 44%),
+    linear-gradient(145deg, #05060a 0%, var(--vw-bg-main) 45%, #0a1224 100%);
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  position: relative;
+  isolation: isolate;
+}
+
+::selection {
+  color: #04151b;
+  background: rgba(54, 214, 255, 0.7);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(13, 20, 34, 0.75);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(54, 214, 255, 0.75), rgba(255, 144, 82, 0.75));
+  border-radius: 999px;
+  border: 2px solid rgba(13, 20, 34, 0.8);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(54, 214, 255, 0.95), rgba(255, 144, 82, 0.95));
+}
+
+.vw-headline {
+  font-family: 'Cinzel', serif;
+}
