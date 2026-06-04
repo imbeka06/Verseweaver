@@ -35,6 +35,8 @@ function NetflixDashboard() {
     updateManuscript,
     saveManuscript,
     setCloudStatus,
+    saveWorkspaceToBackend,
+    loadWorkspaceFromBackend,
   } = useVerseStore(
     useShallow((state) => ({
       activeTab: state.workspace.activeTab,
@@ -52,6 +54,8 @@ function NetflixDashboard() {
       updateManuscript: state.updateManuscript,
       saveManuscript: state.saveManuscript,
       setCloudStatus: state.setCloudStatus,
+      saveWorkspaceToBackend: state.saveWorkspaceToBackend,
+      loadWorkspaceFromBackend: state.loadWorkspaceFromBackend,
     })),
   )
 
@@ -105,6 +109,8 @@ function NetflixDashboard() {
           roadmapNodes={roadmapNodes}
           onSaveManuscript={saveManuscript}
           onSetCloudStatus={setCloudStatus}
+          onSaveToBackend={saveWorkspaceToBackend}
+          onLoadFromBackend={loadWorkspaceFromBackend}
         />
       )
     }
