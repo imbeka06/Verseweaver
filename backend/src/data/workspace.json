@@ -1,0 +1,19 @@
+{
+  "workspace": {
+    "activeTab": "Dashboard",
+    "selectedCharacterId": "anya",
+    "selectedRoadmapNodeId": "node-01"
+  },
+  "manuscript": {
+    "title": "Aethelia Chronicle",
+    "content": "<h2>Chapter 1: Ashfall Overture</h2><p>The night sky cracked open like a lantern of molten glass. Anya pressed her palm against the atlas and felt the city shift beneath her feet.</p>",
+    "lastSavedAt": null,
+    "wordCount": 29
+  },
+  "sync": {
+    "localDraftVersion": 1,
+    "cloudStatus": "Not Synced"
+  },
+  "characters": [],
+  "roadmapNodes": []
+}
