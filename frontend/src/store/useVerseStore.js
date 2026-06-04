@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { fetchWorkspace, saveWorkspace } from '../api/workspaceApi'
 
 const initialCharacters = [
   {
@@ -122,6 +123,7 @@ const initialManuscript = {
 const initialSync = {
   localDraftVersion: 1,
   cloudStatus: 'Not Synced',
+  lastError: null,
 }
 
 const mergeById = (list, item) =>
@@ -268,6 +270,107 @@ const useVerseStore = create((set, get) => ({
         cloudStatus: status,
       },
     })),
+
+  hydrateWorkspace: (workspaceData) =>
+    set((state) => ({
+      workspace: workspaceData.workspace ?? state.workspace,
+      manuscript: workspaceData.manuscript ?? state.manuscript,
+      sync: {
+        ...state.sync,
+        ...(workspaceData.sync ?? {}),
+        cloudStatus: 'Loaded From Backend',
+        lastError: null,
+      },
+      characters:
+        Array.isArray(workspaceData.characters) && workspaceData.characters.length > 0
+          ? workspaceData.characters
+          : state.characters,
+      roadmapNodes:
+        Array.isArray(workspaceData.roadmapNodes) && workspaceData.roadmapNodes.length > 0
+          ? workspaceData.roadmapNodes
+          : state.roadmapNodes,
+    })),
+
+  saveWorkspaceToBackend: async () => {
+    const snapshot = get()
+    const payload = {
+      workspace: snapshot.workspace,
+      manuscript: snapshot.manuscript,
+      sync: {
+        ...snapshot.sync,
+        cloudStatus: 'Synced To Backend',
+        lastError: null,
+      },
+      characters: snapshot.characters,
+      roadmapNodes: snapshot.roadmapNodes,
+    }
+
+    set((state) => ({
+      sync: {
+        ...state.sync,
+        cloudStatus: 'Syncing...',
+        lastError: null,
+      },
+    }))
+
+    try {
+      await saveWorkspace(payload)
+      set((state) => ({
+        sync: {
+          ...state.sync,
+          cloudStatus: 'Synced To Backend',
+          lastError: null,
+        },
+      }))
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: {
+          ...state.sync,
+          cloudStatus: 'Sync Failed',
+          lastError: error.message,
+        },
+      }))
+      return false
+    }
+  },
+
+  loadWorkspaceFromBackend: async () => {
+    set((state) => ({
+      sync: {
+        ...state.sync,
+        cloudStatus: 'Loading Backend Data...',
+        lastError: null,
+      },
+    }))
+
+    try {
+      const remoteWorkspace = await fetchWorkspace()
+
+      if (remoteWorkspace) {
+        get().hydrateWorkspace(remoteWorkspace)
+      } else {
+        set((state) => ({
+          sync: {
+            ...state.sync,
+            cloudStatus: 'No Remote Workspace Found',
+            lastError: null,
+          },
+        }))
+      }
+
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: {
+          ...state.sync,
+          cloudStatus: 'Load Failed',
+          lastError: error.message,
+        },
+      }))
+      return false
+    }
+  },
 }))
 
 export default useVerseStore
