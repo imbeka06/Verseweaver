@@ -1,4 +1,13 @@
-function SaveSyncWorkspace({ manuscript, sync, characters, roadmapNodes, onSaveManuscript, onSetCloudStatus }) {
+function SaveSyncWorkspace({
+  manuscript,
+  sync,
+  characters,
+  roadmapNodes,
+  onSaveManuscript,
+  onSetCloudStatus,
+  onSaveToBackend,
+  onLoadFromBackend,
+}) {
   const exportWorkspace = () => {
     const payload = {
       manuscript,
@@ -27,6 +36,7 @@ function SaveSyncWorkspace({ manuscript, sync, characters, roadmapNodes, onSaveM
         <div className="mt-4 space-y-3 rounded-2xl border border-slate-100/10 bg-slate-900/60 p-4 text-sm text-slate-200">
           <p>Draft version: {sync.localDraftVersion}</p>
           <p>Cloud status: {sync.cloudStatus}</p>
+          <p>Cloud error: {sync.lastError || 'None'}</p>
           <p>Last manuscript save: {manuscript.lastSavedAt ? new Date(manuscript.lastSavedAt).toLocaleString() : 'Never'}</p>
           <p>Word count: {manuscript.wordCount}</p>
           <p>Characters: {characters.length}</p>
@@ -47,6 +57,20 @@ function SaveSyncWorkspace({ manuscript, sync, characters, roadmapNodes, onSaveM
             className="rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300/20"
           >
             Simulate Cloud Sync
+          </button>
+          <button
+            type="button"
+            onClick={onSaveToBackend}
+            className="rounded-full border border-indigo-300/45 bg-indigo-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-indigo-100 transition hover:bg-indigo-300/20"
+          >
+            Save To Backend
+          </button>
+          <button
+            type="button"
+            onClick={onLoadFromBackend}
+            className="rounded-full border border-fuchsia-300/45 bg-fuchsia-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-fuchsia-100 transition hover:bg-fuchsia-300/20"
+          >
+            Load From Backend
           </button>
           <button
             type="button"
