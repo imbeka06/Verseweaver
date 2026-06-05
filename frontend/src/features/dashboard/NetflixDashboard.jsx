@@ -34,6 +34,11 @@ function NetflixDashboard() {
     addCharacter,
     updateManuscript,
     saveManuscript,
+    createNotebook,
+    selectNotebook,
+    createChapter,
+    selectChapter,
+    setWritingMode,
     setCloudStatus,
     saveWorkspaceToBackend,
     loadWorkspaceFromBackend,
@@ -53,6 +58,11 @@ function NetflixDashboard() {
       addCharacter: state.addCharacter,
       updateManuscript: state.updateManuscript,
       saveManuscript: state.saveManuscript,
+      createNotebook: state.createNotebook,
+      selectNotebook: state.selectNotebook,
+      createChapter: state.createChapter,
+      selectChapter: state.selectChapter,
+      setWritingMode: state.setWritingMode,
       setCloudStatus: state.setCloudStatus,
       saveWorkspaceToBackend: state.saveWorkspaceToBackend,
       loadWorkspaceFromBackend: state.loadWorkspaceFromBackend,
@@ -71,7 +81,18 @@ function NetflixDashboard() {
 
   const renderWorkspace = () => {
     if (activeTab === 'Manuscript') {
-      return <ManuscriptStudio manuscript={manuscript} onUpdate={updateManuscript} onSave={saveManuscript} />
+      return (
+        <ManuscriptStudio
+          manuscript={manuscript}
+          onUpdate={updateManuscript}
+          onSave={saveManuscript}
+          onCreateNotebook={createNotebook}
+          onSelectNotebook={selectNotebook}
+          onCreateChapter={createChapter}
+          onSelectChapter={selectChapter}
+          onSetWritingMode={setWritingMode}
+        />
+      )
     }
 
     if (activeTab === 'Roadmaps') {

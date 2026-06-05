@@ -139,6 +139,26 @@ const initialManuscript = {
     '<h2>Chapter 1: Ashfall Overture</h2><p>The night sky cracked open like a lantern of molten glass. Anya pressed her palm against the atlas and felt the city shift beneath her feet.</p>',
   lastSavedAt: null,
   wordCount: 29,
+  writingMode: 'Flow',
+  notebooks: [
+    {
+      id: 'notebook-main',
+      name: 'Main Notebook',
+      chapterIds: ['chapter-1'],
+    },
+  ],
+  chapters: [
+    {
+      id: 'chapter-1',
+      notebookId: 'notebook-main',
+      title: 'Chapter 1: Ashfall Overture',
+      content:
+        '<h2>Chapter 1: Ashfall Overture</h2><p>The night sky cracked open like a lantern of molten glass. Anya pressed her palm against the atlas and felt the city shift beneath her feet.</p>',
+      lastEditedAt: null,
+    },
+  ],
+  activeNotebookId: 'notebook-main',
+  activeChapterId: 'chapter-1',
 }
 
 const initialSync = {
@@ -156,6 +176,70 @@ const initialAuth = {
 
 const persistedAuth = readJsonStorage(AUTH_STORAGE_KEY, initialAuth)
 
+const deriveWordCount = (htmlContent) => {
+  const plainText = (htmlContent ?? '').replace(/<[^>]*>/g, ' ')
+  return plainText
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length
+}
+
+const normalizeManuscript = (incomingManuscript) => {
+  const source = incomingManuscript ?? initialManuscript
+
+  const notebooks =
+    Array.isArray(source.notebooks) && source.notebooks.length > 0
+      ? source.notebooks
+      : initialManuscript.notebooks
+
+  const activeNotebookId =
+    source.activeNotebookId && notebooks.some((notebook) => notebook.id === source.activeNotebookId)
+      ? source.activeNotebookId
+      : notebooks[0].id
+
+  const baseChapters =
+    Array.isArray(source.chapters) && source.chapters.length > 0
+      ? source.chapters
+      : [
+          {
+            id: 'chapter-legacy',
+            notebookId: activeNotebookId,
+            title: source.title || 'Chapter 1',
+            content: source.content || '<p></p>',
+            lastEditedAt: source.lastSavedAt || null,
+          },
+        ]
+
+  const chapters = baseChapters.map((chapter, index) => ({
+    ...chapter,
+    id: chapter.id || `chapter-${index + 1}`,
+    notebookId: chapter.notebookId || activeNotebookId,
+    title: chapter.title || `Chapter ${index + 1}`,
+    content: chapter.content || '<p></p>',
+    lastEditedAt: chapter.lastEditedAt || null,
+  }))
+
+  const activeChapterId =
+    source.activeChapterId && chapters.some((chapter) => chapter.id === source.activeChapterId)
+      ? source.activeChapterId
+      : chapters[0].id
+
+  const activeChapter = chapters.find((chapter) => chapter.id === activeChapterId) ?? chapters[0]
+
+  return {
+    ...initialManuscript,
+    ...source,
+    writingMode: source.writingMode || 'Flow',
+    notebooks,
+    chapters,
+    activeNotebookId,
+    activeChapterId,
+    title: activeChapter.title,
+    content: activeChapter.content,
+    wordCount: deriveWordCount(activeChapter.content),
+  }
+}
+
 const mergeById = (list, item) =>
   list.some((entry) => entry.id === item.id)
     ? list.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry))
@@ -165,7 +249,7 @@ const useVerseStore = create((set, get) => ({
   characters: initialCharacters,
   roadmapNodes: initialRoadmapNodes,
   workspace: initialWorkspace,
-  manuscript: initialManuscript,
+  manuscript: normalizeManuscript(initialManuscript),
   sync: initialSync,
   auth: {
     ...initialAuth,
@@ -367,22 +451,170 @@ const useVerseStore = create((set, get) => ({
 
   updateManuscript: ({ title, content }) =>
     set((state) => {
-      const manuscriptContent = content ?? state.manuscript.content
-      const plainText = manuscriptContent.replace(/<[^>]*>/g, ' ')
-      const wordCount = plainText
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean).length
+      const currentChapterId = state.manuscript.activeChapterId
+      const updatedChapters = state.manuscript.chapters.map((chapter) => {
+        if (chapter.id !== currentChapterId) {
+          return chapter
+        }
+
+        return {
+          ...chapter,
+          title: title ?? chapter.title,
+          content: content ?? chapter.content,
+          lastEditedAt: new Date().toISOString(),
+        }
+      })
+
+      const activeChapter =
+        updatedChapters.find((chapter) => chapter.id === currentChapterId) ?? updatedChapters[0]
+      const manuscriptContent = activeChapter.content
+      const wordCount = deriveWordCount(manuscriptContent)
 
       return {
         manuscript: {
           ...state.manuscript,
-          title: title ?? state.manuscript.title,
+          chapters: updatedChapters,
+          title: activeChapter.title,
           content: manuscriptContent,
           wordCount,
         },
       }
     }),
+
+  createNotebook: (name) =>
+    set((state) => {
+      const notebookName = name?.trim() || `Notebook ${state.manuscript.notebooks.length + 1}`
+      const notebookId = crypto.randomUUID()
+      const chapterId = crypto.randomUUID()
+
+      const notebooks = [
+        ...state.manuscript.notebooks,
+        {
+          id: notebookId,
+          name: notebookName,
+          chapterIds: [chapterId],
+        },
+      ]
+
+      const chapters = [
+        ...state.manuscript.chapters,
+        {
+          id: chapterId,
+          notebookId,
+          title: 'Chapter 1',
+          content: '<p></p>',
+          lastEditedAt: null,
+        },
+      ]
+
+      return {
+        manuscript: {
+          ...state.manuscript,
+          notebooks,
+          chapters,
+          activeNotebookId: notebookId,
+          activeChapterId: chapterId,
+          title: 'Chapter 1',
+          content: '<p></p>',
+          wordCount: 0,
+        },
+      }
+    }),
+
+  selectNotebook: (notebookId) =>
+    set((state) => {
+      const notebook = state.manuscript.notebooks.find((item) => item.id === notebookId)
+      if (!notebook) return {}
+
+      const firstChapterId = notebook.chapterIds[0]
+      const activeChapter =
+        state.manuscript.chapters.find((chapter) => chapter.id === firstChapterId) ??
+        state.manuscript.chapters.find((chapter) => chapter.notebookId === notebookId)
+
+      if (!activeChapter) {
+        return {
+          manuscript: {
+            ...state.manuscript,
+            activeNotebookId: notebookId,
+          },
+        }
+      }
+
+      return {
+        manuscript: {
+          ...state.manuscript,
+          activeNotebookId: notebookId,
+          activeChapterId: activeChapter.id,
+          title: activeChapter.title,
+          content: activeChapter.content,
+          wordCount: deriveWordCount(activeChapter.content),
+        },
+      }
+    }),
+
+  createChapter: (title) =>
+    set((state) => {
+      const chapterTitle = title?.trim() || `Chapter ${state.manuscript.chapters.length + 1}`
+      const chapterId = crypto.randomUUID()
+      const notebookId = state.manuscript.activeNotebookId
+
+      const chapters = [
+        ...state.manuscript.chapters,
+        {
+          id: chapterId,
+          notebookId,
+          title: chapterTitle,
+          content: '<p></p>',
+          lastEditedAt: null,
+        },
+      ]
+
+      const notebooks = state.manuscript.notebooks.map((notebook) =>
+        notebook.id === notebookId
+          ? {
+              ...notebook,
+              chapterIds: [...notebook.chapterIds, chapterId],
+            }
+          : notebook,
+      )
+
+      return {
+        manuscript: {
+          ...state.manuscript,
+          notebooks,
+          chapters,
+          activeChapterId: chapterId,
+          title: chapterTitle,
+          content: '<p></p>',
+          wordCount: 0,
+        },
+      }
+    }),
+
+  selectChapter: (chapterId) =>
+    set((state) => {
+      const chapter = state.manuscript.chapters.find((item) => item.id === chapterId)
+      if (!chapter) return {}
+
+      return {
+        manuscript: {
+          ...state.manuscript,
+          activeNotebookId: chapter.notebookId,
+          activeChapterId: chapter.id,
+          title: chapter.title,
+          content: chapter.content,
+          wordCount: deriveWordCount(chapter.content),
+        },
+      }
+    }),
+
+  setWritingMode: (writingMode) =>
+    set((state) => ({
+      manuscript: {
+        ...state.manuscript,
+        writingMode,
+      },
+    })),
 
   saveManuscript: () =>
     set((state) => ({
@@ -408,7 +640,7 @@ const useVerseStore = create((set, get) => ({
   hydrateWorkspace: (workspaceData) =>
     set((state) => ({
       workspace: workspaceData.workspace ?? state.workspace,
-      manuscript: workspaceData.manuscript ?? state.manuscript,
+      manuscript: normalizeManuscript(workspaceData.manuscript ?? state.manuscript),
       sync: {
         ...state.sync,
         ...(workspaceData.sync ?? {}),

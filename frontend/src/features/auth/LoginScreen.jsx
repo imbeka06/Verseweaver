@@ -1,4 +1,4 @@
-import { AlertCircle, KeyRound, LogIn, Sparkles, UserPlus } from 'lucide-react'
+﻿import { AlertCircle, LogIn, Sparkles, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import useVerseStore from '../../store/useVerseStore'
@@ -18,269 +18,438 @@ function LoginScreen() {
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     if (!usernameOrEmail.trim() || !password.trim()) {
       setAuthError('Please enter both username/email and password.')
       return
     }
-
     if (authMode === 'login') {
       await login({ email: usernameOrEmail, password })
-      return
+    } else {
+      await register({ name: usernameOrEmail, email: usernameOrEmail, password })
     }
-
-    await register({
-      name: usernameOrEmail,
-      email: usernameOrEmail,
-      password,
-    })
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden text-slate-100">
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        poster="https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&fit=crop&w=1600&q=80"
-      >
-        <source src="/videos/arena-duel.mp4" type="video/mp4" />
-      </video>
-
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
-
-      <section className="vw-login-hero pointer-events-none absolute inset-x-0 top-0 z-10 h-[62vh]">
-        <div className="vw-login-hero__frame" />
-        <div className="vw-login-ring" />
-        <figure className="vw-login-fighter vw-login-fighter--ice" />
-        <figure className="vw-login-fighter vw-login-fighter--fire" />
-      </section>
-
-      <header className="relative z-30 flex items-center justify-between px-4 pb-2 pt-4 sm:px-8">
-        <div className="inline-flex items-center gap-3">
-          <div className="rounded-xl border border-cyan-300/40 bg-cyan-300/10 p-2 text-cyan-200">
-            <Sparkles size={18} />
-          </div>
-          <p className="vw-headline text-lg tracking-[0.16em] text-cyan-100">VERSEWEAVER</p>
+    <div className="vw-page">
+      {/* ── Top nav ─────────────────────────────────────────── */}
+      <nav className="vw-nav">
+        <div className="vw-nav-brand">
+          <span className="vw-nav-icon"><Sparkles size={16} /></span>
+          <span className="vw-nav-title">VERSEWEAVER</span>
         </div>
-
-        <div className="inline-flex rounded-full border border-slate-100/20 bg-slate-950/65 p-1 text-xs">
+        <div className="vw-nav-tabs">
           <button
             type="button"
+            className={`vw-tab ${authMode === 'login' ? 'vw-tab--active' : ''}`}
             onClick={() => setAuthMode('login')}
-            className={[
-              'rounded-full px-4 py-2 font-semibold uppercase tracking-[0.1em] transition',
-              authMode === 'login'
-                ? 'bg-cyan-300/20 text-cyan-100 shadow-[0_0_18px_rgba(54,214,255,0.22)]'
-                : 'text-slate-300',
-            ].join(' ')}
           >
             LOGIN
           </button>
           <button
             type="button"
+            className={`vw-tab ${authMode === 'register' ? 'vw-tab--active-reg' : ''}`}
             onClick={() => setAuthMode('register')}
-            className={[
-              'rounded-full px-4 py-2 font-semibold uppercase tracking-[0.1em] transition',
-              authMode === 'register'
-                ? 'bg-orange-300/20 text-orange-100 shadow-[0_0_18px_rgba(255,156,88,0.2)]'
-                : 'text-slate-300',
-            ].join(' ')}
           >
             CREATE ACCOUNT
           </button>
         </div>
-      </header>
+      </nav>
 
-      <section className="relative z-30 flex min-h-[calc(100vh-64px)] flex-col items-center justify-end px-4 pb-10 sm:px-8">
-        <article className="w-full max-w-xl rounded-2xl border border-cyan-200/20 bg-[#0B1520]/80 p-6 shadow-[0_22px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-7">
-          <h1 className="vw-headline text-center text-2xl leading-tight text-slate-100 sm:text-3xl">
-            PROVE YOUR FATE IN THE ARENA. THEN CRAFT YOUR LEGEND.
-          </h1>
-          <p className="mt-2 text-center text-sm text-slate-300">Visual Pre-Visualization & Inspiration Lab</p>
-          <p className="mt-2 text-center text-xs uppercase tracking-[0.14em] text-cyan-100/90">
-            VERSEWEAVER - CINEMATIC AUTHOR ACCESS
-          </p>
+      {/* ── Hero illustration ──────────────────────────────── */}
+      <div className="vw-hero">
+        <img
+          className="vw-hero-img vw-hero-img--1"
+          src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1800&q=90"
+          alt=""
+          aria-hidden="true"
+        />
+        <img
+          className="vw-hero-img vw-hero-img--2"
+          src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1800&q=90"
+          alt=""
+          aria-hidden="true"
+        />
+        <img
+          className="vw-hero-img vw-hero-img--3"
+          src="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1800&q=90"
+          alt=""
+          aria-hidden="true"
+        />
+        <div className="vw-hero-overlay" />
+      </div>
 
-          <div className="mt-5 inline-flex w-full rounded-full border border-slate-100/20 bg-slate-900/60 p-1 text-xs">
+      {/* ── Overlapping auth card ──────────────────────────── */}
+      <div className="vw-card-wrap">
+        <div className="vw-card">
+          {/* brand row */}
+          <div className="vw-card-brand">
+            <span className="vw-card-brand-icon"><Sparkles size={13} /></span>
+            <div>
+              <p className="vw-card-brand-name">VERSEWEAVER</p>
+              <p className="vw-card-brand-access">CINEMATIC AUTHOR ACCESS</p>
+            </div>
+          </div>
+
+          {/* mode toggle */}
+          <div className="vw-toggle">
             <button
               type="button"
+              className={`vw-toggle-btn ${authMode === 'login' ? 'vw-toggle-btn--on' : ''}`}
               onClick={() => setAuthMode('login')}
-              className={[
-                'w-1/2 rounded-full px-4 py-2 font-semibold uppercase tracking-[0.1em] transition',
-                authMode === 'login' ? 'bg-cyan-300/20 text-cyan-100' : 'text-slate-300',
-              ].join(' ')}
             >
               LOGIN
             </button>
             <button
               type="button"
+              className={`vw-toggle-btn ${authMode === 'register' ? 'vw-toggle-btn--on' : ''}`}
               onClick={() => setAuthMode('register')}
-              className={[
-                'w-1/2 rounded-full px-4 py-2 font-semibold uppercase tracking-[0.1em] transition',
-                authMode === 'register' ? 'bg-orange-300/20 text-orange-100' : 'text-slate-300',
-              ].join(' ')}
             >
               CREATE ACCOUNT
             </button>
           </div>
 
-          <p className="mt-5 text-sm leading-relaxed text-slate-300">
-            Enter the arena, then enter your writing universe. Your projects stay synchronized once you sign in.
+          {/* body copy */}
+          <p className="vw-card-body">
+            Enter the arena, then enter your writing universe. Your projects stay
+            synchronized once you sign in.
           </p>
 
+          {/* error */}
           {authError && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-300/35 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">
-              <AlertCircle size={15} />
+            <div className="vw-error">
+              <AlertCircle size={14} />
               <span>{authError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+          {/* form */}
+          <form onSubmit={handleSubmit} className="vw-form">
             <input
               type="text"
               value={usernameOrEmail}
-              onChange={(event) => setUsernameOrEmail(event.target.value)}
-              placeholder="Username or Email"
-              className="w-full rounded-xl border border-slate-100/20 bg-slate-900/70 px-4 py-3 text-sm text-slate-100 outline-none ring-cyan-300/45 transition focus:ring"
+              onChange={(e) => setUsernameOrEmail(e.target.value)}
+              placeholder="imbeka"
+              className="vw-input"
             />
             <input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
-              className="w-full rounded-xl border border-slate-100/20 bg-slate-900/70 px-4 py-3 text-sm text-slate-100 outline-none ring-cyan-300/45 transition focus:ring"
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••"
+              className="vw-input"
             />
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/55 bg-gradient-to-r from-cyan-500/35 to-teal-400/30 px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-cyan-100 shadow-[0_0_20px_rgba(54,214,255,0.25)] transition hover:from-cyan-400/40 hover:to-teal-300/35"
-            >
-              {authMode === 'login' ? <LogIn size={16} /> : <UserPlus size={16} />}
-              →] LOGIN TO VERSEWEAVER
+            <button type="submit" className="vw-submit">
+              {authMode === 'login' ? <LogIn size={15} /> : <UserPlus size={15} />}
+              &nbsp;→ LOGIN TO VERSEWEAVER
             </button>
           </form>
-
-          <div className="mt-4 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-slate-400">
-            <KeyRound size={14} />
-            LOCAL PROTOTYPE AUTHENTICATION FOR NOW
-          </div>
-        </article>
-      </section>
+        </div>
+      </div>
 
       <style>{`
-        .vw-login-hero__frame {
-          position: absolute;
-          inset: 54px 18px auto;
-          height: min(50vh, 460px);
-          border-radius: 22px;
-          border: 1px solid rgba(170, 201, 255, 0.25);
-          box-shadow: 0 24px 60px rgba(5, 10, 26, 0.45), inset 0 0 40px rgba(12, 27, 56, 0.4);
-          background: linear-gradient(180deg, rgba(8, 12, 25, 0.15), rgba(8, 12, 25, 0.45));
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .vw-login-ring {
-          position: absolute;
-          left: 50%;
-          bottom: 8%;
-          width: min(74vw, 880px);
-          height: clamp(110px, 19vh, 180px);
-          transform: translateX(-50%);
-          border-radius: 999px;
-          border: 2px solid rgba(255, 166, 109, 0.6);
-          box-shadow: 0 0 24px rgba(255, 143, 84, 0.56), inset 0 0 30px rgba(255, 181, 117, 0.22);
-          animation: ringPulse 2.6s ease-in-out infinite;
-        }
-
-        .vw-login-fighter {
-          position: absolute;
-          bottom: 14%;
-          width: clamp(180px, 22vw, 340px);
-          height: clamp(240px, 52vh, 430px);
-          border-radius: 28px;
-          border: 1px solid rgba(216, 232, 255, 0.25);
-          background-size: cover;
-          background-position: center;
-          box-shadow: 0 24px 48px rgba(3, 8, 18, 0.65);
+        .vw-page {
+          min-height: 100vh;
+          background: #08111f;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
+          color: #e2e8f0;
+          display: flex;
+          flex-direction: column;
           overflow: hidden;
         }
 
-        .vw-login-fighter::after {
-          content: '';
+        /* ── nav ── */
+        .vw-nav {
+          position: relative;
+          z-index: 20;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 22px;
+          background: rgba(8, 17, 35, 0.88);
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+
+        .vw-nav-brand {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+        }
+
+        .vw-nav-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: rgba(99,179,237,0.15);
+          border: 1px solid rgba(99,179,237,0.35);
+          color: #90cdf4;
+        }
+
+        .vw-nav-title {
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.18em;
+          color: #bee3f8;
+        }
+
+        .vw-nav-tabs {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 999px;
+          padding: 3px;
+        }
+
+        .vw-tab {
+          padding: 5px 16px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          border: none;
+          cursor: pointer;
+          background: transparent;
+          color: #94a3b8;
+          transition: all .2s;
+        }
+
+        .vw-tab--active {
+          background: rgba(99,179,237,0.22);
+          color: #bee3f8;
+          box-shadow: 0 0 14px rgba(99,179,237,0.22);
+        }
+
+        /* ── hero ── */
+        .vw-hero {
+          position: relative;
+          width: 100%;
+          height: clamp(340px, 54vh, 560px);
+          overflow: hidden;
+          flex-shrink: 0;
+          background: #08111f;
+        }
+
+        .vw-hero-img {
           position: absolute;
           inset: 0;
-          background: linear-gradient(180deg, transparent 20%, rgba(8, 13, 26, 0.66));
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center 40%;
+          display: block;
+          opacity: 0;
+          animation: heroFade 18s infinite;
         }
 
-        .vw-login-fighter--ice {
-          left: 14%;
-          background-image: url('https://images.unsplash.com/photo-1519338381761-c7523edc1f46?auto=format&fit=crop&w=900&q=80');
-          transform: rotateY(18deg) rotateZ(-5deg);
-          animation: iceFighterMove 3.8s ease-in-out infinite;
-          filter: drop-shadow(0 0 28px rgba(97, 205, 255, 0.35));
+        .vw-hero-img--1 { animation-delay: 0s; }
+        .vw-hero-img--2 { animation-delay: 6s; }
+        .vw-hero-img--3 { animation-delay: 12s; }
+
+        @keyframes heroFade {
+          0%   { opacity: 0; }
+          8%   { opacity: 1; }
+          33%  { opacity: 1; }
+          41%  { opacity: 0; }
+          100% { opacity: 0; }
         }
 
-        .vw-login-fighter--fire {
-          right: 14%;
-          background-image: url('https://images.unsplash.com/photo-1521119989659-a83eee488004?auto=format&fit=crop&w=900&q=80');
-          transform: rotateY(-18deg) rotateZ(5deg);
-          animation: fireFighterMove 3.8s ease-in-out infinite;
-          filter: drop-shadow(0 0 28px rgba(255, 153, 87, 0.35));
+        .vw-hero-overlay {
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+          background: linear-gradient(
+            to bottom,
+            rgba(8,17,35,0.22) 0%,
+            rgba(8,17,35,0.28) 55%,
+            rgba(8,17,35,0.78) 100%
+          );
         }
 
-        @keyframes ringPulse {
-          0%, 100% { transform: translateX(-50%) scale(0.98); opacity: 0.74; }
-          50% { transform: translateX(-50%) scale(1.02); opacity: 1; }
+        /* ── card wrap ── */
+        .vw-card-wrap {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          justify-content: center;
+          margin-top: -130px;
+          padding: 0 16px 40px;
         }
 
-        @keyframes iceFighterMove {
-          0%, 100% { transform: translateY(8px) rotateY(18deg) rotateZ(-5deg) scale(0.97); }
-          50% { transform: translateY(-10px) rotateY(10deg) rotateZ(-2deg) scale(1.04); }
+        /* ── card ── */
+        .vw-card {
+          width: 100%;
+          max-width: 468px;
+          background: rgba(10, 19, 38, 0.86);
+          border: 1px solid rgba(148,163,184,0.16);
+          border-radius: 16px;
+          padding: 24px 24px 20px;
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          box-shadow:
+            0 24px 60px rgba(0,0,0,0.55),
+            0 2px 0 rgba(255,255,255,0.04) inset;
         }
 
-        @keyframes fireFighterMove {
-          0%, 100% { transform: translateY(8px) rotateY(-18deg) rotateZ(5deg) scale(0.97); }
-          50% { transform: translateY(-10px) rotateY(-10deg) rotateZ(2deg) scale(1.04); }
+        .vw-card-headline {
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: 0.02em;
+          line-height: 1.25;
+          color: #f1f5f9;
+          text-align: center;
+          text-transform: uppercase;
         }
 
-        @media (max-width: 1024px) {
-          .vw-login-hero {
-            height: clamp(320px, 46vh, 400px);
-          }
-
-          .vw-login-fighter {
-            width: clamp(130px, 18vw, 220px);
-            height: clamp(180px, 36vh, 310px);
-            bottom: 18%;
-          }
-
-          .vw-login-fighter--ice { left: 8%; }
-          .vw-login-fighter--fire { right: 8%; }
+        .vw-card-sub {
+          margin-top: 6px;
+          text-align: center;
+          font-size: 12px;
+          color: #94a3b8;
         }
 
-        @media (max-width: 640px) {
-          .vw-login-hero {
-            height: 320px;
-          }
+        .vw-card-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 14px;
+        }
 
-          .vw-login-fighter {
-            width: 112px;
-            height: 180px;
-            bottom: 24%;
-          }
+        .vw-card-brand-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          border-radius: 7px;
+          background: rgba(99,179,237,0.14);
+          border: 1px solid rgba(99,179,237,0.3);
+          color: #90cdf4;
+          flex-shrink: 0;
+        }
 
-          .vw-login-fighter--ice { left: 4%; }
-          .vw-login-fighter--fire { right: 4%; }
+        .vw-card-brand-name {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          color: #bee3f8;
+        }
 
-          .vw-login-hero__frame {
-            inset: 58px 8px auto;
-          }
+        .vw-card-brand-access {
+          font-size: 9px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          color: #64748b;
+          text-transform: uppercase;
+          margin-top: 1px;
+        }
+
+        /* ── toggle ── */
+        .vw-toggle {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 999px;
+          padding: 3px;
+          margin-top: 12px;
+        }
+
+        .vw-toggle-btn {
+          flex: 1;
+          padding: 5px 14px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          border: none;
+          cursor: pointer;
+          background: transparent;
+          color: #64748b;
+          transition: all .2s;
+        }
+
+        .vw-toggle-btn--on {
+          background: rgba(99,179,237,0.2);
+          color: #bee3f8;
+        }
+
+        .vw-card-body {
+          margin-top: 12px;
+          font-size: 12.5px;
+          line-height: 1.6;
+          color: #94a3b8;
+        }
+
+        /* ── form ── */
+        .vw-form {
+          margin-top: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .vw-input {
+          width: 100%;
+          padding: 10px 14px;
+          background: rgba(15, 23, 42, 0.75);
+          border: 1px solid rgba(148,163,184,0.18);
+          border-radius: 10px;
+          font-size: 13px;
+          color: #e2e8f0;
+          outline: none;
+          transition: border-color .2s;
+        }
+
+        .vw-input::placeholder { color: #475569; }
+        .vw-input:focus { border-color: rgba(99,179,237,0.45); }
+
+        .vw-submit {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          padding: 11px 14px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          border: 1px solid rgba(56,189,248,0.4);
+          background: linear-gradient(135deg, rgba(14,116,144,0.65), rgba(21,94,117,0.5));
+          color: #bae6fd;
+          cursor: pointer;
+          transition: all .2s;
+        }
+
+        .vw-submit:hover {
+          background: linear-gradient(135deg, rgba(14,116,144,0.85), rgba(21,94,117,0.7));
+        }
+
+        /* ── error ── */
+        .vw-error {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 10px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          background: rgba(220,38,38,0.12);
+          border: 1px solid rgba(252,165,165,0.25);
+          font-size: 12px;
+          color: #fca5a5;
         }
       `}</style>
-    </main>
+    </div>
   )
 }
 
