@@ -2,6 +2,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import http from 'node:http'
+import { authenticateRequest } from './middleware/auth.js'
 import socialsRoutes from './routes/socialsRoutes.js'
 import { initializeSocketServer } from './realtime/socketServer.js'
 import workspaceRoutes from './routes/workspaceRoutes.js'
@@ -15,6 +16,7 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 
 app.use(cors({ origin: frontendOrigin }))
 app.use(express.json({ limit: '1mb' }))
+app.use('/api', authenticateRequest)
 app.use('/api', workspaceRoutes)
 app.use('/api', socialsRoutes)
 

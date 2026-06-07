@@ -1,6 +1,10 @@
 const allowedRoles = ['owner', 'follower', 'guest', 'admin']
 
 export function getRequestAccessContext(req) {
+  if (req.access && req.access.role) {
+    return req.access
+  }
+
   const roleHeader = String(req.headers['x-vw-role'] || 'guest').toLowerCase()
   const role = allowedRoles.includes(roleHeader) ? roleHeader : 'guest'
   const userId = String(req.headers['x-vw-user-id'] || 'anonymous')
