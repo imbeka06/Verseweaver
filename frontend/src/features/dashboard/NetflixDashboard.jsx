@@ -183,6 +183,7 @@ function NetflixDashboard() {
         <SaveSyncWorkspace
           manuscript={manuscript}
           sync={sync}
+          socials={socials}
           characters={characters}
           roadmapNodes={roadmapNodes}
           onSaveManuscript={saveManuscript}

@@ -1,6 +1,7 @@
 function SaveSyncWorkspace({
   manuscript,
   sync,
+  socials,
   characters,
   roadmapNodes,
   onSaveManuscript,
@@ -12,6 +13,7 @@ function SaveSyncWorkspace({
     const payload = {
       manuscript,
       sync,
+      socials,
       characters,
       roadmapNodes,
       exportedAt: new Date().toISOString(),
@@ -39,6 +41,8 @@ function SaveSyncWorkspace({
           <p>Cloud error: {sync.lastError || 'None'}</p>
           <p>Last manuscript save: {manuscript.lastSavedAt ? new Date(manuscript.lastSavedAt).toLocaleString() : 'Never'}</p>
           <p>Word count: {manuscript.wordCount}</p>
+          <p>Published posts: {socials?.posts?.length ?? 0}</p>
+          <p>Follower records: {socials?.followers?.length ?? 0}</p>
           <p>Characters: {characters.length}</p>
           <p>Roadmap nodes: {roadmapNodes.length}</p>
         </div>
