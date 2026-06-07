@@ -33,7 +33,6 @@ function NetflixDashboard() {
     surfaceMode,
     sync,
     setActiveTab,
-    setViewerRole,
     setSurfaceMode,
     selectCharacter,
     selectRoadmapNode,
@@ -66,7 +65,6 @@ function NetflixDashboard() {
       surfaceMode: state.auth.surfaceMode,
       sync: state.sync,
       setActiveTab: state.setActiveTab,
-      setViewerRole: state.setViewerRole,
       setSurfaceMode: state.setSurfaceMode,
       selectCharacter: state.selectCharacter,
       selectRoadmapNode: state.selectRoadmapNode,
@@ -200,6 +198,7 @@ function NetflixDashboard() {
         selectedCharacter={selectedCharacter}
         selectedCharacterId={selectedCharacterId}
         roadmapNodes={roadmapNodes}
+        manuscript={manuscript}
         socials={socials}
         role={role}
         surfaceMode={surfaceMode}
@@ -239,20 +238,6 @@ function NetflixDashboard() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-100/10 bg-slate-900/65 px-3 py-1.5">
-              <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Role</span>
-              <select
-                value={role}
-                onChange={(event) => setViewerRole(event.target.value)}
-                className="rounded-md border border-slate-100/15 bg-slate-950/70 px-2 py-1 text-xs text-slate-100 outline-none"
-              >
-                <option value="owner">Owner</option>
-                <option value="follower">Follower</option>
-                <option value="guest">Guest</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-
             {canAccessPrivate && (
               <button
                 type="button"

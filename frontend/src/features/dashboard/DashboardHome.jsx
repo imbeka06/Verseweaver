@@ -1,4 +1,4 @@
-import { Film, GitBranch, PenSquare, Save, Users } from 'lucide-react'
+import { BookOpenText, Film, GitBranch, PenSquare, Save, Users } from 'lucide-react'
 import SocialsWorkspace from '../socials/SocialsWorkspace'
 
 function CharacterStripCard({ character, isSelected, onSelect, onVisualize, onEditLore }) {
@@ -62,6 +62,7 @@ function DashboardHome({
   selectedCharacter,
   selectedCharacterId,
   roadmapNodes,
+  manuscript,
   socials,
   role,
   surfaceMode,
@@ -78,6 +79,16 @@ function DashboardHome({
 }) {
   const canAccessPrivate = role === 'owner' || role === 'admin'
   const showSocialsOnly = !canAccessPrivate || surfaceMode === 'socials'
+  const featuredBooks = (manuscript?.notebooks ?? []).slice(0, 3).map((notebook) => {
+    const firstChapter = (manuscript?.chapters ?? []).find((chapter) => chapter.notebookId === notebook.id)
+
+    return {
+      id: notebook.id,
+      name: notebook.name,
+      chapterTitle: firstChapter?.title || 'New chapter waiting',
+      chapterCount: notebook.chapterIds.length,
+    }
+  })
 
   if (showSocialsOnly) {
     return (
@@ -147,6 +158,38 @@ function DashboardHome({
                 {item.label}
               </button>
             ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-100/10 bg-slate-950/35 p-4">
+            <div className="flex items-center gap-2">
+              <BookOpenText size={16} className="text-cyan-100" />
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100">
+                Featured Books In Progress
+              </p>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              {featuredBooks.length > 0 ? (
+                featuredBooks.map((book) => (
+                  <button
+                    key={book.id}
+                    type="button"
+                    onClick={onOpenManuscript}
+                    className="rounded-xl border border-slate-100/10 bg-slate-900/55 p-4 text-left transition hover:border-cyan-300/35 hover:bg-slate-900/80"
+                  >
+                    <p className="text-sm font-semibold text-white">{book.name}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-400">
+                      {book.chapterCount} chapters
+                    </p>
+                    <p className="mt-3 line-clamp-2 text-sm text-slate-300">{book.chapterTitle}</p>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-100/15 bg-slate-900/45 p-4 text-sm text-slate-400">
+                  Your active books will appear here once you create them in Writer Studio.
+                </div>
+              )}
+            </div>
           </div>
         </article>
 
