@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
 import { deleteCache, getCache, setCache } from '../lib/redis.js'
+import { enqueueSocialPostCreated } from '../queue/socialsQueue.js'
 import { emitSocialEvent } from '../realtime/socketServer.js'
 import { readSocials, writeSocials } from '../services/socialsStore.js'
 
@@ -83,6 +84,7 @@ router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res)
 
     await writeSocials(nextSocials)
     await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    await enqueueSocialPostCreated(post)
     emitSocialEvent('socials:post-created', post)
     return res.status(201).json({ ok: true, post, socials: nextSocials })
   } catch {
