@@ -1,0 +1,97 @@
+{
+  "profile": {
+    "writerId": "anya",
+    "displayName": "Anya Voss",
+    "handle": "@Anya.Voss",
+    "role": "Archivist Mage",
+    "bio": "Call the action now what followers see."
+  },
+  "stats": {
+    "followers": 2000,
+    "following": 300
+  },
+  "statuses": [
+    {
+      "id": "status-1",
+      "title": "Status",
+      "coverUrl": "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=500&q=80"
+    },
+    {
+      "id": "status-2",
+      "title": "Lore Notes",
+      "coverUrl": "https://images.unsplash.com/photo-1463320726281-696a485928c7?auto=format&fit=crop&w=500&q=80"
+    },
+    {
+      "id": "status-3",
+      "title": "Maps",
+      "coverUrl": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=500&q=80"
+    }
+  ],
+  "highlights": [
+    {
+      "id": "highlight-1",
+      "title": "Molten Sky",
+      "coverUrl": "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=800&q=80"
+    },
+    {
+      "id": "highlight-2",
+      "title": "Atlas Corridor",
+      "coverUrl": "https://images.unsplash.com/photo-1526243741027-444d633d7365?auto=format&fit=crop&w=800&q=80"
+    }
+  ],
+  "followers": [
+    {
+      "id": "follower-1",
+      "name": "Kaelen Dry",
+      "followedAt": "2026-06-05T10:00:00.000Z"
+    },
+    {
+      "id": "follower-2",
+      "name": "Elara Nyx",
+      "followedAt": "2026-06-05T10:15:00.000Z"
+    },
+    {
+      "id": "follower-3",
+      "name": "Soren Vale",
+      "followedAt": "2026-06-05T10:30:00.000Z"
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-1",
+      "excerpt": "Snippet from the deep archive and anvil... the silence here is complete.",
+      "mediaUrl": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=900&q=80",
+      "visibility": "public",
+      "createdAt": "2026-06-05T09:20:00.000Z",
+      "likes": 84,
+      "comments": 26,
+      "shares": 11
+    },
+    {
+      "id": "post-2",
+      "excerpt": "Anya stepped into the molten sky, forcing Kaelen into a reluctant alliance.",
+      "mediaUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
+      "visibility": "public",
+      "createdAt": "2026-06-05T11:00:00.000Z",
+      "likes": 61,
+      "comments": 14,
+      "shares": 5
+    }
+  ],
+  "messages": [
+    {
+      "id": "message-1",
+      "senderName": "Mara Quinn",
+      "text": "Pre-vis video from the arena scene was incredible.",
+      "createdAt": "2026-06-05T12:00:00.000Z",
+      "read": false
+    },
+    {
+      "id": "message-2",
+      "senderName": "Adrian Cole",
+      "text": "Can we get a lore thread on the ninth script?",
+      "createdAt": "2026-06-05T12:12:00.000Z",
+      "read": true
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
+import socialsRoutes from './routes/socialsRoutes.js'
 import workspaceRoutes from './routes/workspaceRoutes.js'
 
 dotenv.config()
@@ -12,6 +13,7 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 app.use(cors({ origin: frontendOrigin }))
 app.use(express.json({ limit: '1mb' }))
 app.use('/api', workspaceRoutes)
+app.use('/api', socialsRoutes)
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({
