@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
 import { deleteCache, getCache, setCache } from '../lib/redis.js'
+import { emitSocialEvent } from '../realtime/socketServer.js'
 import { readSocials, writeSocials } from '../services/socialsStore.js'
 
 const router = Router()
@@ -82,6 +83,7 @@ router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res)
 
     await writeSocials(nextSocials)
     await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    emitSocialEvent('socials:post-created', post)
     return res.status(201).json({ ok: true, post, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to create post.' })
@@ -114,6 +116,7 @@ router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), asy
 
     await writeSocials(nextSocials)
     await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    emitSocialEvent('socials:follower-added', follower)
     return res.status(200).json({ ok: true, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to follow writer.' })
@@ -144,6 +147,7 @@ router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), a
 
     await writeSocials(nextSocials)
     await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    emitSocialEvent('socials:message-created', message)
     return res.status(201).json({ ok: true, message, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to send message.' })
