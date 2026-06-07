@@ -1,34 +1,24 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { prisma } from '../lib/prisma.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const storageFilePath = path.resolve(__dirname, '../data/workspace.json')
-
-const parseJsonSafe = (value) => {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
-}
+const WORKSPACE_SNAPSHOT_KEY = 'primary-workspace'
 
 export async function readWorkspace() {
-  try {
-    const content = await fs.readFile(storageFilePath, 'utf8')
-    const parsed = parseJsonSafe(content)
-    return parsed ?? null
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return null
-    }
-    throw error
-  }
+  const snapshot = await prisma.workspaceSnapshot.findUnique({
+    where: { key: WORKSPACE_SNAPSHOT_KEY },
+  })
+
+  return snapshot?.payload ?? null
 }
 
 export async function writeWorkspace(data) {
-  const payload = JSON.stringify(data, null, 2)
-  await fs.mkdir(path.dirname(storageFilePath), { recursive: true })
-  await fs.writeFile(storageFilePath, payload, 'utf8')
+  await prisma.workspaceSnapshot.upsert({
+    where: { key: WORKSPACE_SNAPSHOT_KEY },
+    create: {
+      key: WORKSPACE_SNAPSHOT_KEY,
+      payload: data,
+    },
+    update: {
+      payload: data,
+    },
+  })
 }
