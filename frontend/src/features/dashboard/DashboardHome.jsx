@@ -1,4 +1,5 @@
 import { Film, GitBranch, PenSquare, Save, Users } from 'lucide-react'
+import SocialsWorkspace from '../socials/SocialsWorkspace'
 
 function CharacterStripCard({ character, isSelected, onSelect, onVisualize, onEditLore }) {
   return (
@@ -61,43 +62,112 @@ function DashboardHome({
   selectedCharacter,
   selectedCharacterId,
   roadmapNodes,
+  socials,
+  role,
+  surfaceMode,
   onSelectCharacter,
   onOpenCharacters,
   onOpenVisualize,
   onOpenRoadmaps,
   onOpenManuscript,
   onOpenSave,
+  onOpenSocials = () => {},
+  onCreateSocialPost = async () => false,
+  onFollowWriter = async () => false,
+  onSendSocialMessage = async () => false,
 }) {
+  const canAccessPrivate = role === 'owner' || role === 'admin'
+  const showSocialsOnly = !canAccessPrivate || surfaceMode === 'socials'
+
+  if (showSocialsOnly) {
+    return (
+      <div className="space-y-4">
+        <header className="rounded-2xl border border-slate-100/10 bg-slate-950/55 px-5 py-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-cyan-200">Public Audience View</p>
+          <h1 className="vw-headline mt-2 text-3xl text-white">SOCIALS PORTAL</h1>
+          <p className="mt-2 text-sm text-slate-300">Followers can access published work, highlights, and direct messages only.</p>
+        </header>
+
+        <SocialsWorkspace
+          socials={socials}
+          role={role}
+          onCreatePost={onCreateSocialPost}
+          onFollowWriter={onFollowWriter}
+          onSendMessage={onSendSocialMessage}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200/10 bg-slate-950/55 px-6 py-8 shadow-[0_18px_38px_rgba(1,6,18,0.55)] backdrop-blur-sm sm:px-10 sm:py-12">
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(56,189,248,0.08),transparent_25%,rgba(255,144,82,0.11)_82%)]" />
-        <p className="text-sm uppercase tracking-[0.22em] text-cyan-200/90">Creative Command Workspace</p>
-        <h1 className="vw-headline mt-4 max-w-4xl text-3xl leading-tight text-white sm:text-5xl lg:text-6xl">
-          CRAFT YOUR MASTERPIECE. MAP YOUR WORLDS.
-        </h1>
-        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
-          One place to write your manuscript, shape your visual roadmap, manage mixed real and fictional
-          characters, and pre-visualize scenes.
-        </p>
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <article className="relative overflow-hidden rounded-3xl border border-slate-200/10 bg-slate-950/55 px-6 py-8 shadow-[0_18px_38px_rgba(1,6,18,0.55)] backdrop-blur-sm sm:px-8 sm:py-10">
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(56,189,248,0.08),transparent_25%,rgba(255,144,82,0.11)_82%)]" />
+          <p className="text-sm uppercase tracking-[0.22em] text-cyan-200/90">Ink Your Thoughts</p>
+          <h1 className="vw-headline mt-4 text-3xl leading-tight text-white sm:text-5xl">
+            CRAFT YOUR MASTERPIECE. MAP YOUR WORLDS.
+          </h1>
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
+            Preserve your private pipeline for manuscript drafting, roadmap plotting, character curation, and scene visualization.
+          </p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={onOpenManuscript}
-            className="inline-flex items-center gap-2 rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 transition hover:bg-cyan-300/25"
-          >
-            <PenSquare size={14} />
-            Open Writer Studio
-          </button>
-          <button
-            type="button"
-            onClick={onOpenRoadmaps}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/20 bg-slate-800/55 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:border-slate-200/45"
-          >
-            <GitBranch size={14} />
-            Plot Roadmap
-          </button>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onOpenManuscript}
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 transition hover:bg-cyan-300/25"
+            >
+              <PenSquare size={14} />
+              Open Writer Studio
+            </button>
+            <button
+              type="button"
+              onClick={onOpenRoadmaps}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200/20 bg-slate-800/55 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:border-slate-200/45"
+            >
+              <GitBranch size={14} />
+              Plot Roadmap
+            </button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-2">
+            {[
+              { label: 'Manuscript', action: onOpenManuscript },
+              { label: 'Roadmaps', action: onOpenRoadmaps },
+              { label: 'Characters', action: onOpenCharacters },
+              { label: 'Visualize', action: onOpenVisualize },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.action}
+                className="rounded-xl border border-slate-100/15 bg-slate-900/55 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-100/35"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <div className="rounded-3xl border border-slate-100/10 bg-slate-950/45 p-2">
+          <SocialsWorkspace
+            socials={socials}
+            role={role}
+            compact
+            onCreatePost={onCreateSocialPost}
+            onFollowWriter={onFollowWriter}
+            onSendMessage={onSendSocialMessage}
+          />
+          <div className="px-3 pb-3">
+            <button
+              type="button"
+              onClick={onOpenSocials}
+              className="w-full rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100"
+            >
+              Open Full Socials View
+            </button>
+          </div>
         </div>
       </section>
 
