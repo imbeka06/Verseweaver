@@ -1,9 +1,10 @@
 import { BookOpenText, Clapperboard, Compass, Save, Sparkles, UserRound } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import CharactersWorkspace from '../characters/CharactersWorkspace'
 import ManuscriptStudio from '../manuscript/ManuscriptStudio'
 import RoadmapsWorkspace from '../roadmaps/RoadmapsWorkspace'
+import SocialsWorkspace from '../socials/SocialsWorkspace'
 import SaveSyncWorkspace from '../sync/SaveSyncWorkspace'
 import VisualizeWorkspace from '../visualize/VisualizeWorkspace'
 import DashboardHome from './DashboardHome'
@@ -11,6 +12,7 @@ import useVerseStore from '../../store/useVerseStore'
 
 const NAV_TABS = [
   { label: 'Dashboard', icon: Sparkles },
+  { label: 'Socials', icon: UserRound },
   { label: 'Manuscript', icon: BookOpenText },
   { label: 'Roadmaps', icon: Compass },
   { label: 'Characters', icon: UserRound },
@@ -26,8 +28,13 @@ function NetflixDashboard() {
     characters,
     roadmapNodes,
     manuscript,
+    socials,
+    role,
+    surfaceMode,
     sync,
     setActiveTab,
+    setViewerRole,
+    setSurfaceMode,
     selectCharacter,
     selectRoadmapNode,
     addRoadmapNode,
@@ -39,6 +46,10 @@ function NetflixDashboard() {
     createChapter,
     selectChapter,
     setWritingMode,
+    loadSocialsFromBackend,
+    createSocialPost,
+    followWriter,
+    sendSocialMessage,
     setCloudStatus,
     saveWorkspaceToBackend,
     loadWorkspaceFromBackend,
@@ -50,8 +61,13 @@ function NetflixDashboard() {
       characters: state.characters,
       roadmapNodes: state.roadmapNodes,
       manuscript: state.manuscript,
+      socials: state.socials,
+      role: state.auth.role,
+      surfaceMode: state.auth.surfaceMode,
       sync: state.sync,
       setActiveTab: state.setActiveTab,
+      setViewerRole: state.setViewerRole,
+      setSurfaceMode: state.setSurfaceMode,
       selectCharacter: state.selectCharacter,
       selectRoadmapNode: state.selectRoadmapNode,
       addRoadmapNode: state.addRoadmapNode,
@@ -63,11 +79,28 @@ function NetflixDashboard() {
       createChapter: state.createChapter,
       selectChapter: state.selectChapter,
       setWritingMode: state.setWritingMode,
+      loadSocialsFromBackend: state.loadSocialsFromBackend,
+      createSocialPost: state.createSocialPost,
+      followWriter: state.followWriter,
+      sendSocialMessage: state.sendSocialMessage,
       setCloudStatus: state.setCloudStatus,
       saveWorkspaceToBackend: state.saveWorkspaceToBackend,
       loadWorkspaceFromBackend: state.loadWorkspaceFromBackend,
     })),
   )
+
+  const canAccessPrivate = role === 'owner' || role === 'admin'
+
+  useEffect(() => {
+    loadSocialsFromBackend()
+  }, [loadSocialsFromBackend])
+
+  useEffect(() => {
+    const privateTabs = ['Manuscript', 'Roadmaps', 'Characters', 'Visualize', 'Save & Sync']
+    if (!canAccessPrivate && privateTabs.includes(activeTab)) {
+      setActiveTab('Dashboard')
+    }
+  }, [activeTab, canAccessPrivate, setActiveTab])
 
   const selectedCharacter = useMemo(
     () => characters.find((character) => character.id === selectedCharacterId) ?? null,
@@ -81,6 +114,18 @@ function NetflixDashboard() {
 
   const renderWorkspace = () => {
     if (activeTab === 'Manuscript') {
+      if (!canAccessPrivate) {
+        return (
+          <SocialsWorkspace
+            socials={socials}
+            role={role}
+            onCreatePost={createSocialPost}
+            onFollowWriter={followWriter}
+            onSendMessage={sendSocialMessage}
+          />
+        )
+      }
+
       return (
         <ManuscriptStudio
           manuscript={manuscript}
@@ -91,6 +136,18 @@ function NetflixDashboard() {
           onCreateChapter={createChapter}
           onSelectChapter={selectChapter}
           onSetWritingMode={setWritingMode}
+        />
+      )
+    }
+
+    if (activeTab === 'Socials') {
+      return (
+        <SocialsWorkspace
+          socials={socials}
+          role={role}
+          onCreatePost={createSocialPost}
+          onFollowWriter={followWriter}
+          onSendMessage={sendSocialMessage}
         />
       )
     }
@@ -142,15 +199,27 @@ function NetflixDashboard() {
         selectedCharacter={selectedCharacter}
         selectedCharacterId={selectedCharacterId}
         roadmapNodes={roadmapNodes}
+        socials={socials}
+        role={role}
+        surfaceMode={surfaceMode}
         onSelectCharacter={selectCharacter}
         onOpenCharacters={() => setActiveTab('Characters')}
         onOpenVisualize={() => setActiveTab('Visualize')}
         onOpenRoadmaps={() => setActiveTab('Roadmaps')}
         onOpenManuscript={() => setActiveTab('Manuscript')}
         onOpenSave={() => setActiveTab('Save & Sync')}
+        onOpenSocials={() => setActiveTab('Socials')}
+        onCreateSocialPost={createSocialPost}
+        onFollowWriter={followWriter}
+        onSendSocialMessage={sendSocialMessage}
       />
     )
   }
+
+  const visibleTabs = NAV_TABS.filter((tab) => {
+    if (canAccessPrivate) return true
+    return tab.label === 'Dashboard' || tab.label === 'Socials'
+  })
 
   return (
     <div className="relative min-h-screen overflow-x-hidden px-4 pb-12 pt-4 text-slate-100 sm:px-6 lg:px-10">
@@ -169,7 +238,31 @@ function NetflixDashboard() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {NAV_TABS.map((tab) => {
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-100/10 bg-slate-900/65 px-3 py-1.5">
+              <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Role</span>
+              <select
+                value={role}
+                onChange={(event) => setViewerRole(event.target.value)}
+                className="rounded-md border border-slate-100/15 bg-slate-950/70 px-2 py-1 text-xs text-slate-100 outline-none"
+              >
+                <option value="owner">Owner</option>
+                <option value="follower">Follower</option>
+                <option value="guest">Guest</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            {canAccessPrivate && (
+              <button
+                type="button"
+                onClick={() => setSurfaceMode(surfaceMode === 'hybrid' ? 'socials' : 'hybrid')}
+                className="inline-flex items-center gap-2 rounded-full border border-fuchsia-300/40 bg-fuchsia-400/15 px-4 py-2 text-xs font-semibold tracking-[0.12em] text-fuchsia-100"
+              >
+                {surfaceMode === 'hybrid' ? 'Audience View' : 'Studio View'}
+              </button>
+            )}
+
+            {visibleTabs.map((tab) => {
               const isActive = tab.label === activeTab
               const Icon = tab.icon
 
