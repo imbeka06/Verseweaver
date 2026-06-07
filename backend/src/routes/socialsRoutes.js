@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
+import { deleteCache, getCache, setCache } from '../lib/redis.js'
 import { readSocials, writeSocials } from '../services/socialsStore.js'
 
 const router = Router()
+const SOCIALS_OVERVIEW_CACHE_KEY = 'socials:overview:anya'
 
 const nowIso = () => new Date().toISOString()
 
@@ -36,7 +38,13 @@ const readOrSeedSocials = async () => {
 
 router.get('/socials/overview', async (req, res) => {
   try {
-    const socials = await readOrSeedSocials()
+    const cachedPayload = await getCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    const socials = cachedPayload ? JSON.parse(cachedPayload) : await readOrSeedSocials()
+
+    if (!cachedPayload) {
+      await setCache(SOCIALS_OVERVIEW_CACHE_KEY, JSON.stringify(socials), 20)
+    }
+
     return res.status(200).json({
       ok: true,
       socials,
@@ -73,6 +81,7 @@ router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res)
     }
 
     await writeSocials(nextSocials)
+    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
     return res.status(201).json({ ok: true, post, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to create post.' })
@@ -104,6 +113,7 @@ router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), asy
     }
 
     await writeSocials(nextSocials)
+    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
     return res.status(200).json({ ok: true, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to follow writer.' })
@@ -133,6 +143,7 @@ router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), a
     }
 
     await writeSocials(nextSocials)
+    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
     return res.status(201).json({ ok: true, message, socials: nextSocials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to send message.' })
