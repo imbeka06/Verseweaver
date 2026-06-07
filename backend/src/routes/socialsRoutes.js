@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
 import { readSocials, writeSocials } from '../services/socialsStore.js'
 
 const router = Router()
@@ -33,16 +34,20 @@ const readOrSeedSocials = async () => {
   return emptySocials
 }
 
-router.get('/socials/overview', async (_req, res) => {
+router.get('/socials/overview', async (req, res) => {
   try {
     const socials = await readOrSeedSocials()
-    return res.status(200).json({ ok: true, socials })
+    return res.status(200).json({
+      ok: true,
+      socials,
+      access: getRequestAccessContext(req),
+    })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to load socials.' })
   }
 })
 
-router.post('/socials/posts', async (req, res) => {
+router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res) => {
   const { excerpt, mediaUrl, visibility = 'public' } = req.body ?? {}
 
   if (!excerpt || typeof excerpt !== 'string') {
@@ -74,7 +79,7 @@ router.post('/socials/posts', async (req, res) => {
   }
 })
 
-router.post('/socials/follow', async (req, res) => {
+router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
   const { followerName } = req.body ?? {}
 
   if (!followerName || typeof followerName !== 'string') {
@@ -105,7 +110,7 @@ router.post('/socials/follow', async (req, res) => {
   }
 })
 
-router.post('/socials/messages', async (req, res) => {
+router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
   const { senderName, text } = req.body ?? {}
 
   if (!senderName || !text || typeof senderName !== 'string' || typeof text !== 'string') {

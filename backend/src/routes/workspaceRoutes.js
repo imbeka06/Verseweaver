@@ -1,9 +1,10 @@
 import { Router } from 'express'
+import { requireRoles } from '../middleware/rbac.js'
 import { readWorkspace, writeWorkspace } from '../services/workspaceStore.js'
 
 const router = Router()
 
-router.get('/workspace', async (_req, res) => {
+router.get('/workspace', requireRoles(['owner', 'admin']), async (_req, res) => {
   try {
     const workspace = await readWorkspace()
     res.status(200).json({ ok: true, workspace })
@@ -12,7 +13,7 @@ router.get('/workspace', async (_req, res) => {
   }
 })
 
-router.put('/workspace', async (req, res) => {
+router.put('/workspace', requireRoles(['owner', 'admin']), async (req, res) => {
   const { workspace } = req.body ?? {}
 
   if (!workspace || typeof workspace !== 'object') {
