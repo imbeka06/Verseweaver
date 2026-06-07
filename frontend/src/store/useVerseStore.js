@@ -1,4 +1,10 @@
 import { create } from 'zustand'
+import {
+  createSocialPost,
+  fetchSocialsOverview,
+  followWriter as followWriterApi,
+  sendDirectMessage,
+} from '../api/socialsApi'
 import { fetchWorkspace, saveWorkspace } from '../api/workspaceApi'
 
 const AUTH_STORAGE_KEY = 'verseweaver-auth'
@@ -133,6 +139,25 @@ const initialWorkspace = {
   selectedRoadmapNodeId: 'node-01',
 }
 
+const initialSocials = {
+  profile: {
+    writerId: 'anya',
+    displayName: 'Anya Voss',
+    handle: '@Anya.Voss',
+    role: 'Archivist Mage',
+    bio: 'Call the action now what followers see.',
+  },
+  stats: {
+    followers: 2000,
+    following: 300,
+  },
+  statuses: [],
+  highlights: [],
+  followers: [],
+  posts: [],
+  messages: [],
+}
+
 const initialManuscript = {
   title: 'Aethelia Chronicle',
   content:
@@ -172,6 +197,8 @@ const initialAuth = {
   mode: 'login',
   user: null,
   error: null,
+  role: 'guest',
+  surfaceMode: 'socials',
 }
 
 const persistedAuth = readJsonStorage(AUTH_STORAGE_KEY, initialAuth)
@@ -183,6 +210,11 @@ const deriveWordCount = (htmlContent) => {
     .split(/\s+/)
     .filter(Boolean).length
 }
+
+const getAccessContext = (state) => ({
+  role: state.auth.role,
+  userId: state.auth.user?.email || 'anonymous',
+})
 
 const normalizeManuscript = (incomingManuscript) => {
   const source = incomingManuscript ?? initialManuscript
@@ -250,6 +282,7 @@ const useVerseStore = create((set, get) => ({
   roadmapNodes: initialRoadmapNodes,
   workspace: initialWorkspace,
   manuscript: normalizeManuscript(initialManuscript),
+  socials: initialSocials,
   sync: initialSync,
   auth: {
     ...initialAuth,
@@ -296,6 +329,8 @@ const useVerseStore = create((set, get) => ({
         email: account.email,
       },
       error: null,
+      role: 'owner',
+      surfaceMode: 'hybrid',
     }
 
     persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
@@ -340,6 +375,8 @@ const useVerseStore = create((set, get) => ({
         email: normalizedEmail,
       },
       error: null,
+      role: 'owner',
+      surfaceMode: 'hybrid',
     }
 
     persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
@@ -355,6 +392,40 @@ const useVerseStore = create((set, get) => ({
     persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
     set({ auth: nextAuth })
   },
+
+  setViewerRole: (role) =>
+    set((state) => {
+      const nextRole = ['owner', 'follower', 'guest', 'admin'].includes(role) ? role : 'guest'
+      const nextSurfaceMode = nextRole === 'owner' || nextRole === 'admin' ? 'hybrid' : 'socials'
+
+      const nextAuth = {
+        ...state.auth,
+        role: nextRole,
+        surfaceMode: nextSurfaceMode,
+      }
+
+      persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+
+      return {
+        auth: nextAuth,
+      }
+    }),
+
+  setSurfaceMode: (surfaceMode) =>
+    set((state) => {
+      const canAccessPrivate = state.auth.role === 'owner' || state.auth.role === 'admin'
+      const nextSurfaceMode = canAccessPrivate ? surfaceMode : 'socials'
+      const nextAuth = {
+        ...state.auth,
+        surfaceMode: nextSurfaceMode,
+      }
+
+      persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+
+      return {
+        auth: nextAuth,
+      }
+    }),
 
   setActiveTab: (tab) =>
     set((state) => ({
@@ -641,6 +712,7 @@ const useVerseStore = create((set, get) => ({
     set((state) => ({
       workspace: workspaceData.workspace ?? state.workspace,
       manuscript: normalizeManuscript(workspaceData.manuscript ?? state.manuscript),
+      socials: workspaceData.socials ?? state.socials,
       sync: {
         ...state.sync,
         ...(workspaceData.sync ?? {}),
@@ -667,6 +739,7 @@ const useVerseStore = create((set, get) => ({
         cloudStatus: 'Synced To Backend',
         lastError: null,
       },
+      socials: snapshot.socials,
       characters: snapshot.characters,
       roadmapNodes: snapshot.roadmapNodes,
     }
@@ -680,7 +753,7 @@ const useVerseStore = create((set, get) => ({
     }))
 
     try {
-      await saveWorkspace(payload)
+      await saveWorkspace(payload, getAccessContext(snapshot))
       set((state) => ({
         sync: {
           ...state.sync,
@@ -711,7 +784,7 @@ const useVerseStore = create((set, get) => ({
     }))
 
     try {
-      const remoteWorkspace = await fetchWorkspace()
+      const remoteWorkspace = await fetchWorkspace(getAccessContext(get()))
 
       if (remoteWorkspace) {
         get().hydrateWorkspace(remoteWorkspace)
@@ -734,6 +807,60 @@ const useVerseStore = create((set, get) => ({
           lastError: error.message,
         },
       }))
+      return false
+    }
+  },
+
+  loadSocialsFromBackend: async () => {
+    try {
+      const response = await fetchSocialsOverview(getAccessContext(get()))
+      set((state) => ({
+        socials: response.socials ?? state.socials,
+      }))
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  createSocialPost: async ({ excerpt, mediaUrl }) => {
+    try {
+      const socials = await createSocialPost(
+        {
+          excerpt,
+          mediaUrl,
+        },
+        getAccessContext(get()),
+      )
+      set({ socials })
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  followWriter: async (followerName) => {
+    try {
+      const socials = await followWriterApi(followerName, getAccessContext(get()))
+      set({ socials })
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  sendSocialMessage: async ({ senderName, text }) => {
+    try {
+      const socials = await sendDirectMessage(
+        {
+          senderName,
+          text,
+        },
+        getAccessContext(get()),
+      )
+      set({ socials })
+      return true
+    } catch {
       return false
     }
   },
