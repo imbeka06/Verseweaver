@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model WorkspaceSnapshot {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  payload   Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model SocialProfile {
+  id          String   @id @default(cuid())
+  writerId    String   @unique
+  displayName String
+  handle      String   @unique
+  role        String
+  bio         String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  statuses   SocialStatus[]
+  highlights SocialHighlight[]
+  followers  SocialFollower[]
+  posts      SocialPost[]
+  messages   SocialMessage[]
+  stats      SocialStats?
+}
+
+model SocialStats {
+  id         String        @id @default(cuid())
+  profileId  String        @unique
+  followers  Int           @default(0)
+  following  Int           @default(0)
+  profile    SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model SocialStatus {
+  id        String        @id @default(cuid())
+  profileId String
+  title     String
+  coverUrl  String
+  createdAt DateTime      @default(now())
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model SocialHighlight {
+  id        String        @id @default(cuid())
+  profileId String
+  title     String
+  coverUrl  String
+  createdAt DateTime      @default(now())
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model SocialFollower {
+  id         String        @id @default(cuid())
+  profileId  String
+  name       String
+  followedAt DateTime      @default(now())
+  profile    SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model SocialPost {
+  id         String        @id @default(cuid())
+  profileId  String
+  excerpt    String
+  mediaUrl   String?
+  visibility String        @default("public")
+  likes      Int           @default(0)
+  comments   Int           @default(0)
+  shares     Int           @default(0)
+  createdAt  DateTime      @default(now())
+  profile    SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model SocialMessage {
+  id         String        @id @default(cuid())
+  profileId  String
+  senderName String
+  text       String
+  read       Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  profile    SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
