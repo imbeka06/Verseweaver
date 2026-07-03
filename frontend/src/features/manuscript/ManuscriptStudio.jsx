@@ -9,7 +9,7 @@ import {
   Save,
   Underline,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const WRITING_MODES = [
   {
@@ -42,12 +42,48 @@ function ManuscriptStudio({
   const editorRef = useRef(null)
   const [newNotebookName, setNewNotebookName] = useState('')
   const [newChapterName, setNewChapterName] = useState('')
+    const isInternalChange = useRef(false)
+  const hasSetInitialContent = useRef(false)
+
+  // Sync editor content when it changes from outside (e.g. switching chapters)
+  // but NOT during normal typing — that's managed by the contentEditable natively
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    // Set initial content on mount
+    if (!hasSetInitialContent.current) {
+      editor.innerHTML = manuscript.content
+      hasSetInitialContent.current = true
+      return
+    }
+
+    // Only sync if the change came from outside (not from user typing)
+    if (!isInternalChange.current && editor.innerHTML !== manuscript.content) {
+      const selection = window.getSelection()
+      const hadFocus = document.activeElement === editor
+
+      editor.innerHTML = manuscript.content
+
+      // Restore cursor to end if editor was focused
+      if (hadFocus) {
+        const range = document.createRange()
+        range.selectNodeContents(editor)
+        range.collapse(false) // collapse to end
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    }
+
+    isInternalChange.current = false
+  }, [manuscript.content])
 
   const applyFormat = (command, value) => {
     const editor = editorRef.current
     if (!editor) return
     editor.focus()
     document.execCommand(command, false, value)
+    isInternalChange.current = true
     onUpdate({ content: editor.innerHTML })
   }
 
@@ -257,13 +293,15 @@ function ManuscriptStudio({
           </button>
         </div>
 
-        <div
+                                        <div
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
-          onInput={(event) => onUpdate({ content: event.currentTarget.innerHTML })}
+          onInput={(event) => {
+            isInternalChange.current = true
+            onUpdate({ content: event.currentTarget.innerHTML })
+          }}
           className="min-h-[22rem] rounded-2xl border border-slate-100/15 bg-slate-950/80 p-5 text-base leading-7 text-slate-100 outline-none ring-cyan-300/40 focus:ring"
-          dangerouslySetInnerHTML={{ __html: manuscript.content }}
         />
 
         <section className="rounded-2xl border border-slate-100/10 bg-gradient-to-r from-emerald-500/10 to-cyan-400/10 p-4">
