@@ -12,8 +12,10 @@ export function initializeSocketServer(httpServer, frontendOrigin) {
 
   io.on('connection', (socket) => {
     socket.on('socials:join', (payload) => {
-      const writerId = payload?.writerId || 'anya'
-      socket.join(`socials:${writerId}`)
+      const writerId = payload?.writerId
+      if (writerId) {
+        socket.join(`socials:${writerId}`)
+      }
     })
 
     socket.on('disconnect', () => {
@@ -24,7 +26,7 @@ export function initializeSocketServer(httpServer, frontendOrigin) {
   return io
 }
 
-export function emitSocialEvent(eventName, payload, writerId = 'anya') {
-  if (!io) return
+export function emitSocialEvent(eventName, payload, writerId) {
+  if (!io || !writerId) return
   io.to(`socials:${writerId}`).emit(eventName, payload)
 }
