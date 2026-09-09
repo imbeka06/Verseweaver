@@ -1,6 +1,46 @@
 import { prisma } from '../lib/prisma.js'
+import { upsertUserFromAccess } from './userService.js'
 
-const DEFAULT_WRITER_ID = 'anya'
+const toProfile = (profile) => ({
+  writerId: profile.writerId,
+  displayName: profile.displayName,
+  handle: profile.handle,
+  role: profile.role,
+  bio: profile.bio,
+})
+
+const toStats = (stats) => ({
+  followers: stats?.followers ?? 0,
+  following: stats?.following ?? 0,
+})
+
+const toStatus = (item) => ({ id: item.id, title: item.title, coverUrl: item.coverUrl })
+const toHighlight = (item) => ({ id: item.id, title: item.title, coverUrl: item.coverUrl })
+
+const toFollower = (item) => ({
+  id: item.id,
+  name: item.name,
+  followedAt: item.followedAt.toISOString(),
+})
+
+const toPost = (item) => ({
+  id: item.id,
+  excerpt: item.excerpt,
+  mediaUrl: item.mediaUrl,
+  visibility: item.visibility,
+  createdAt: item.createdAt.toISOString(),
+  likes: item.likes,
+  comments: item.comments,
+  shares: item.shares,
+})
+
+const toMessage = (item) => ({
+  id: item.id,
+  senderName: item.senderName,
+  text: item.text,
+  createdAt: item.createdAt.toISOString(),
+  read: item.read,
+})
 
 const toSocialsShape = (profileRecord) => {
   if (!profileRecord) {
@@ -8,61 +48,48 @@ const toSocialsShape = (profileRecord) => {
   }
 
   return {
-    profile: {
-      writerId: profileRecord.writerId,
-      displayName: profileRecord.displayName,
-      handle: profileRecord.handle,
-      role: profileRecord.role,
-      bio: profileRecord.bio,
-    },
-    stats: {
-      followers: profileRecord.stats?.followers ?? 0,
-      following: profileRecord.stats?.following ?? 0,
-    },
-    statuses: profileRecord.statuses.map((item) => ({
-      id: item.id,
-      title: item.title,
-      coverUrl: item.coverUrl,
-    })),
-    highlights: profileRecord.highlights.map((item) => ({
-      id: item.id,
-      title: item.title,
-      coverUrl: item.coverUrl,
-    })),
-    followers: profileRecord.followers.map((item) => ({
-      id: item.id,
-      name: item.name,
-      followedAt: item.followedAt.toISOString(),
-    })),
-    posts: profileRecord.posts.map((item) => ({
-      id: item.id,
-      excerpt: item.excerpt,
-      mediaUrl: item.mediaUrl,
-      visibility: item.visibility,
-      createdAt: item.createdAt.toISOString(),
-      likes: item.likes,
-      comments: item.comments,
-      shares: item.shares,
-    })),
-    messages: profileRecord.messages.map((item) => ({
-      id: item.id,
-      senderName: item.senderName,
-      text: item.text,
-      createdAt: item.createdAt.toISOString(),
-      read: item.read,
-    })),
+    profile: toProfile(profileRecord),
+    stats: toStats(profileRecord.stats),
+    statuses: profileRecord.statuses.map(toStatus),
+    highlights: profileRecord.highlights.map(toHighlight),
+    followers: profileRecord.followers.map(toFollower),
+    posts: profileRecord.posts.map(toPost),
+    messages: profileRecord.messages.map(toMessage),
   }
 }
 
-const mapDateInput = (value) => {
-  if (!value) return undefined
-  const asDate = new Date(value)
-  return Number.isNaN(asDate.getTime()) ? undefined : asDate
+// Idempotently creates the user's social profile (and its stats row), inheriting
+// displayName/handle/role from the User row. Safe under concurrency because
+// `upsert` on the unique `userId` is atomic.
+export async function ensureProfile(access, profileInput = {}) {
+  const user = await upsertUserFromAccess(access)
+  const userId = access.userId
+
+  const profile = await prisma.socialProfile.upsert({
+    where: { userId },
+    create: {
+      userId,
+      writerId: userId,
+      displayName: profileInput.displayName || user?.displayName || 'Writer',
+      handle: profileInput.handle || user?.handle || `@${userId.slice(0, 8)}`,
+      role: profileInput.role || user?.role || 'owner',
+      bio: profileInput.bio || '',
+    },
+    update: {},
+  })
+
+  await prisma.socialStats.upsert({
+    where: { profileId: profile.id },
+    create: { profileId: profile.id },
+    update: {},
+  })
+
+  return profile
 }
 
-export async function readSocials() {
-  const profileRecord = await prisma.socialProfile.findFirst({
-    where: { writerId: DEFAULT_WRITER_ID },
+export async function readSocials(userId) {
+  const profileRecord = await prisma.socialProfile.findUnique({
+    where: { userId },
     include: {
       stats: true,
       statuses: { orderBy: { createdAt: 'desc' } },
@@ -76,112 +103,109 @@ export async function readSocials() {
   return toSocialsShape(profileRecord)
 }
 
-export async function writeSocials(data) {
-  const profileInput = data.profile ?? {}
-  const writerId = profileInput.writerId || DEFAULT_WRITER_ID
+export async function readOrSeedSocials(access) {
+  const existing = await readSocials(access.userId)
+  if (existing) {
+    return existing
+  }
 
-  const profile = await prisma.socialProfile.upsert({
-    where: { writerId },
-    create: {
-      writerId,
-      displayName: profileInput.displayName || 'Anya Voss',
-      handle: profileInput.handle || '@Anya.Voss',
-      role: profileInput.role || 'Archivist Mage',
-      bio: profileInput.bio || 'Call the action now what followers see.',
-    },
-    update: {
-      displayName: profileInput.displayName || 'Anya Voss',
-      handle: profileInput.handle || '@Anya.Voss',
-      role: profileInput.role || 'Archivist Mage',
-      bio: profileInput.bio || 'Call the action now what followers see.',
-    },
-  })
+  await ensureProfile(access)
+  return readSocials(access.userId)
+}
 
-  await prisma.socialStats.upsert({
-    where: { profileId: profile.id },
-    create: {
+export async function createPost(access, { excerpt, mediaUrl, visibility }) {
+  const profile = await ensureProfile(access)
+
+  const post = await prisma.socialPost.create({
+    data: {
       profileId: profile.id,
-      followers: data.stats?.followers ?? 0,
-      following: data.stats?.following ?? 0,
-    },
-    update: {
-      followers: data.stats?.followers ?? 0,
-      following: data.stats?.following ?? 0,
+      excerpt,
+      mediaUrl: mediaUrl || null,
+      visibility: visibility || 'public',
     },
   })
 
-  await Promise.all([
-    prisma.socialStatus.deleteMany({ where: { profileId: profile.id } }),
-    prisma.socialHighlight.deleteMany({ where: { profileId: profile.id } }),
-    prisma.socialFollower.deleteMany({ where: { profileId: profile.id } }),
-    prisma.socialPost.deleteMany({ where: { profileId: profile.id } }),
-    prisma.socialMessage.deleteMany({ where: { profileId: profile.id } }),
+  return toPost(post)
+}
+
+export async function followWriter(access, { followerName }) {
+  const profile = await ensureProfile(access)
+
+  // Atomic: the follower row and the follower count change together, so two
+  // simultaneous follows each add a follower and increment the count (no
+  // lost update from read-modify-write).
+  const [follower, stats] = await prisma.$transaction([
+    prisma.socialFollower.create({
+      data: { profileId: profile.id, name: followerName },
+    }),
+    prisma.socialStats.upsert({
+      where: { profileId: profile.id },
+      create: { profileId: profile.id, followers: 1 },
+      update: { followers: { increment: 1 } },
+    }),
   ])
 
-  if (Array.isArray(data.statuses) && data.statuses.length > 0) {
-    await prisma.socialStatus.createMany({
-      data: data.statuses.map((item) => ({
-        id: item.id,
-        profileId: profile.id,
-        title: item.title,
-        coverUrl: item.coverUrl,
-      })),
-      skipDuplicates: true,
-    })
+  return { follower: toFollower(follower), stats: toStats(stats) }
+}
+
+export async function sendMessage(access, { senderName, text }) {
+  const profile = await ensureProfile(access)
+
+  const message = await prisma.socialMessage.create({
+    data: { profileId: profile.id, senderName, text },
+  })
+
+  return toMessage(message)
+}
+
+export async function likePost(access, postId) {
+  const profile = await prisma.socialProfile.findUnique({ where: { userId: access.userId } })
+
+  if (!profile) {
+    const error = new Error('Post not found.')
+    error.status = 404
+    throw error
   }
 
-  if (Array.isArray(data.highlights) && data.highlights.length > 0) {
-    await prisma.socialHighlight.createMany({
-      data: data.highlights.map((item) => ({
-        id: item.id,
-        profileId: profile.id,
-        title: item.title,
-        coverUrl: item.coverUrl,
-      })),
-      skipDuplicates: true,
-    })
+  const result = await prisma.socialPost.updateMany({
+    where: { id: postId, profileId: profile.id },
+    data: { likes: { increment: 1 } },
+  })
+
+  if (result.count === 0) {
+    const error = new Error('Post not found.')
+    error.status = 404
+    throw error
   }
 
-  if (Array.isArray(data.followers) && data.followers.length > 0) {
-    await prisma.socialFollower.createMany({
-      data: data.followers.map((item) => ({
-        id: item.id,
-        profileId: profile.id,
-        name: item.name,
-        followedAt: mapDateInput(item.followedAt),
-      })),
-      skipDuplicates: true,
-    })
+  return toPost(await prisma.socialPost.findUnique({ where: { id: postId } }))
+}
+
+export async function unlikePost(access, postId) {
+  const profile = await prisma.socialProfile.findUnique({ where: { userId: access.userId } })
+
+  if (!profile) {
+    const error = new Error('Post not found.')
+    error.status = 404
+    throw error
   }
 
-  if (Array.isArray(data.posts) && data.posts.length > 0) {
-    await prisma.socialPost.createMany({
-      data: data.posts.map((item) => ({
-        id: item.id,
-        profileId: profile.id,
-        excerpt: item.excerpt,
-        mediaUrl: item.mediaUrl || null,
-        visibility: item.visibility || 'public',
-        likes: item.likes ?? 0,
-        comments: item.comments ?? 0,
-        shares: item.shares ?? 0,
-        createdAt: mapDateInput(item.createdAt),
-      })),
-      skipDuplicates: true,
-    })
+  // Atomic conditional decrement — `where: { likes: { gt: 0 } }` makes this a
+  // single UPDATE that never drops likes below zero.
+  await prisma.socialPost.updateMany({
+    where: { id: postId, profileId: profile.id, likes: { gt: 0 } },
+    data: { likes: { decrement: 1 } },
+  })
+
+  const post = await prisma.socialPost.findFirst({
+    where: { id: postId, profileId: profile.id },
+  })
+
+  if (!post) {
+    const error = new Error('Post not found.')
+    error.status = 404
+    throw error
   }
 
-  if (Array.isArray(data.messages) && data.messages.length > 0) {
-    await prisma.socialMessage.createMany({
-      data: data.messages.map((item) => ({
-        id: item.id,
-        profileId: profile.id,
-        senderName: item.senderName,
-        text: item.text,
-        read: Boolean(item.read),
-        createdAt: mapDateInput(item.createdAt),
-      })),
-      skipDuplicates: true,
-    })
-  }
+  return toPost(post)
 }
