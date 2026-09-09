@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import express from 'express'
 import http from 'node:http'
 import { authenticateRequest } from './middleware/auth.js'
+import { ensureUser } from './middleware/ensureUser.js'
 import authRoutes from './routes/authRoutes.js'
 import charactersRoutes from './routes/charactersRoutes.js'
 import manuscriptRoutes from './routes/manuscriptRoutes.js'
@@ -21,6 +22,7 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 app.use(cors({ origin: frontendOrigin }))
 app.use(express.json({ limit: '1mb' }))
 app.use('/api', authenticateRequest)
+app.use('/api', ensureUser)
 app.use('/api', authRoutes)
 app.use('/api', workspaceRoutes)
 app.use('/api', manuscriptRoutes)
