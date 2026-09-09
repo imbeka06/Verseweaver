@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
+import { validateBody } from '../middleware/validate.js'
 import { deleteCache, getCache, setCache } from '../lib/redis.js'
 import { enqueueSocialPostCreated } from '../queue/socialsQueue.js'
 import { emitSocialEvent } from '../realtime/socketServer.js'
+import { createPostSchema, followSchema, sendMessageSchema } from '../validation/schemas.js'
 import {
   createPost,
   followWriter,
@@ -37,12 +39,8 @@ router.get('/socials/overview', async (req, res) => {
   }
 })
 
-router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res) => {
-  const { excerpt, mediaUrl, visibility } = req.body ?? {}
-
-  if (!excerpt || typeof excerpt !== 'string') {
-    return res.status(400).json({ ok: false, message: 'Post excerpt is required.' })
-  }
+router.post('/socials/posts', requireRoles(['owner', 'admin']), validateBody(createPostSchema), async (req, res) => {
+  const { excerpt, mediaUrl, visibility } = req.body
 
   try {
     const post = await createPost(req.access, { excerpt, mediaUrl, visibility })
@@ -57,12 +55,8 @@ router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res)
   }
 })
 
-router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
-  const { followerName } = req.body ?? {}
-
-  if (!followerName || typeof followerName !== 'string') {
-    return res.status(400).json({ ok: false, message: 'Follower name is required.' })
-  }
+router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), validateBody(followSchema), async (req, res) => {
+  const { followerName } = req.body
 
   try {
     const result = await followWriter(req.access, { followerName })
@@ -76,12 +70,8 @@ router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), asy
   }
 })
 
-router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
-  const { senderName, text } = req.body ?? {}
-
-  if (!senderName || !text || typeof senderName !== 'string' || typeof text !== 'string') {
-    return res.status(400).json({ ok: false, message: 'Sender and message text are required.' })
-  }
+router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), validateBody(sendMessageSchema), async (req, res) => {
+  const { senderName, text } = req.body
 
   try {
     const message = await sendMessage(req.access, { senderName, text })
