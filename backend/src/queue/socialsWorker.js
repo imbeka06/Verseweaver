@@ -10,22 +10,34 @@ export function startSocialsWorker() {
   const worker = new Worker(
     'socials-jobs',
     async (job) => {
-      if (job.name === 'social-post-created') {
-        // Placeholder for heavy async tasks (fan-out, notifications, indexing).
-        return { indexed: true, postId: job.data.id }
+      switch (job.name) {
+        case 'social-post-created': {
+          // Post-processing hook: fan-out to followers, notifications, search
+          // indexing. Add integrations here as the product grows.
+          return { indexed: true, postId: job.data.id }
+        }
+        default:
+          return { ignored: true }
       }
-
-      return { ignored: true }
     },
     {
       connection: {
         url: redisUrl,
       },
+      concurrency: 5,
     },
   )
 
+  worker.on('completed', (job) => {
+    console.log(`[queue] completed ${job.name} (${job.id})`)
+  })
+
   worker.on('failed', (job, error) => {
-    console.error(`[queue] job failed (${job?.name}):`, error.message)
+    console.error(`[queue] failed ${job?.name} (${job?.id}):`, error.message)
+  })
+
+  worker.on('error', (error) => {
+    console.error('[queue] worker error:', error.message)
   })
 
   return worker
