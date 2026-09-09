@@ -1,0 +1,28 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: verseweaver-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # Optional local Postgres — only if you are NOT using Supabase for the DB.
+  # If you use Supabase, set DATABASE_URL to Supabase and leave this commented out.
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: verseweaver-postgres
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: verseweaver
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+volumes:
+  redis-data:
+  # pg-data:
