@@ -65,3 +65,20 @@ export async function deleteCache(key) {
     return false
   }
 }
+
+export async function disconnectRedis() {
+  if (!redisClient) return
+
+  const client = redisClient
+  redisClient = null
+
+  try {
+    await client.quit()
+  } catch {
+    try {
+      client.disconnect()
+    } catch {
+      // ignore — process is exiting anyway
+    }
+  }
+}
