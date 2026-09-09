@@ -3,48 +3,28 @@ import { getRequestAccessContext, requireRoles } from '../middleware/rbac.js'
 import { deleteCache, getCache, setCache } from '../lib/redis.js'
 import { enqueueSocialPostCreated } from '../queue/socialsQueue.js'
 import { emitSocialEvent } from '../realtime/socketServer.js'
-import { readSocials, writeSocials } from '../services/socialsStore.js'
+import {
+  createPost,
+  followWriter,
+  likePost,
+  readOrSeedSocials,
+  readSocials,
+  sendMessage,
+  unlikePost,
+} from '../services/socialsStore.js'
 
 const router = Router()
-const SOCIALS_OVERVIEW_CACHE_KEY = 'socials:overview:anya'
 
-const nowIso = () => new Date().toISOString()
-
-const emptySocials = {
-  profile: {
-    writerId: 'anya',
-    displayName: 'Anya Voss',
-    handle: '@Anya.Voss',
-    role: 'Archivist Mage',
-    bio: 'Call the action now what followers see.',
-  },
-  stats: {
-    followers: 2000,
-    following: 300,
-  },
-  statuses: [],
-  highlights: [],
-  followers: [],
-  posts: [],
-  messages: [],
-}
-
-const readOrSeedSocials = async () => {
-  const socials = await readSocials()
-  if (socials) {
-    return socials
-  }
-  await writeSocials(emptySocials)
-  return emptySocials
-}
+const cacheKeyFor = (userId) => `socials:overview:${userId}`
 
 router.get('/socials/overview', async (req, res) => {
   try {
-    const cachedPayload = await getCache(SOCIALS_OVERVIEW_CACHE_KEY)
-    const socials = cachedPayload ? JSON.parse(cachedPayload) : await readOrSeedSocials()
+    const cacheKey = cacheKeyFor(req.access.userId)
+    const cachedPayload = await getCache(cacheKey)
+    const socials = cachedPayload ? JSON.parse(cachedPayload) : await readOrSeedSocials(req.access)
 
     if (!cachedPayload) {
-      await setCache(SOCIALS_OVERVIEW_CACHE_KEY, JSON.stringify(socials), 20)
+      await setCache(cacheKey, JSON.stringify(socials), 20)
     }
 
     return res.status(200).json({
@@ -58,35 +38,20 @@ router.get('/socials/overview', async (req, res) => {
 })
 
 router.post('/socials/posts', requireRoles(['owner', 'admin']), async (req, res) => {
-  const { excerpt, mediaUrl, visibility = 'public' } = req.body ?? {}
+  const { excerpt, mediaUrl, visibility } = req.body ?? {}
 
   if (!excerpt || typeof excerpt !== 'string') {
     return res.status(400).json({ ok: false, message: 'Post excerpt is required.' })
   }
 
   try {
-    const socials = await readOrSeedSocials()
-    const post = {
-      id: crypto.randomUUID(),
-      excerpt,
-      mediaUrl: mediaUrl || null,
-      visibility,
-      createdAt: nowIso(),
-      likes: 0,
-      comments: 0,
-      shares: 0,
-    }
-
-    const nextSocials = {
-      ...socials,
-      posts: [post, ...socials.posts],
-    }
-
-    await writeSocials(nextSocials)
-    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
+    const post = await createPost(req.access, { excerpt, mediaUrl, visibility })
+    const socials = await readSocials(req.access.userId)
+    await deleteCache(cacheKeyFor(req.access.userId))
     await enqueueSocialPostCreated(post)
-    emitSocialEvent('socials:post-created', post)
-    return res.status(201).json({ ok: true, post, socials: nextSocials })
+    emitSocialEvent('socials:post-created', post, req.access.userId)
+
+    return res.status(201).json({ ok: true, post, socials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to create post.' })
   }
@@ -100,26 +65,12 @@ router.post('/socials/follow', requireRoles(['owner', 'follower', 'admin']), asy
   }
 
   try {
-    const socials = await readOrSeedSocials()
-    const follower = {
-      id: crypto.randomUUID(),
-      name: followerName,
-      followedAt: nowIso(),
-    }
+    const result = await followWriter(req.access, { followerName })
+    const socials = await readSocials(req.access.userId)
+    await deleteCache(cacheKeyFor(req.access.userId))
+    emitSocialEvent('socials:follower-added', result.follower, req.access.userId)
 
-    const nextSocials = {
-      ...socials,
-      followers: [follower, ...socials.followers],
-      stats: {
-        ...socials.stats,
-        followers: socials.stats.followers + 1,
-      },
-    }
-
-    await writeSocials(nextSocials)
-    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
-    emitSocialEvent('socials:follower-added', follower)
-    return res.status(200).json({ ok: true, socials: nextSocials })
+    return res.status(200).json({ ok: true, socials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to follow writer.' })
   }
@@ -133,26 +84,44 @@ router.post('/socials/messages', requireRoles(['owner', 'follower', 'admin']), a
   }
 
   try {
-    const socials = await readOrSeedSocials()
-    const message = {
-      id: crypto.randomUUID(),
-      senderName,
-      text,
-      createdAt: nowIso(),
-      read: false,
-    }
+    const message = await sendMessage(req.access, { senderName, text })
+    const socials = await readSocials(req.access.userId)
+    await deleteCache(cacheKeyFor(req.access.userId))
+    emitSocialEvent('socials:message-created', message, req.access.userId)
 
-    const nextSocials = {
-      ...socials,
-      messages: [message, ...socials.messages],
-    }
-
-    await writeSocials(nextSocials)
-    await deleteCache(SOCIALS_OVERVIEW_CACHE_KEY)
-    emitSocialEvent('socials:message-created', message)
-    return res.status(201).json({ ok: true, message, socials: nextSocials })
+    return res.status(201).json({ ok: true, message, socials })
   } catch {
     return res.status(500).json({ ok: false, message: 'Failed to send message.' })
+  }
+})
+
+router.post('/socials/posts/:id/like', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
+  try {
+    const post = await likePost(req.access, req.params.id)
+    await deleteCache(cacheKeyFor(req.access.userId))
+    emitSocialEvent('socials:post-liked', post, req.access.userId)
+
+    return res.status(200).json({ ok: true, post })
+  } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ ok: false, message: error.message })
+    }
+    return res.status(500).json({ ok: false, message: 'Failed to like post.' })
+  }
+})
+
+router.post('/socials/posts/:id/unlike', requireRoles(['owner', 'follower', 'admin']), async (req, res) => {
+  try {
+    const post = await unlikePost(req.access, req.params.id)
+    await deleteCache(cacheKeyFor(req.access.userId))
+    emitSocialEvent('socials:post-unliked', post, req.access.userId)
+
+    return res.status(200).json({ ok: true, post })
+  } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ ok: false, message: error.message })
+    }
+    return res.status(500).json({ ok: false, message: 'Failed to unlike post.' })
   }
 })
 
