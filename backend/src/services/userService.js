@@ -5,7 +5,7 @@ const sanitizeHandle = (value) =>
 
 const handleFromEmail = (email) => `@${sanitizeHandle((email || '').split('@')[0])}`
 
-const toPublicUser = (user) => ({
+export const toPublicUser = (user) => ({
   id: user.id,
   email: user.email,
   displayName: user.displayName,
@@ -14,16 +14,6 @@ const toPublicUser = (user) => ({
   avatarUrl: user.avatarUrl,
   bio: user.bio,
 })
-
-async function resolveUniqueHandle(baseHandle, userId) {
-  const existing = await prisma.user.findFirst({ where: { handle: baseHandle } })
-
-  if (!existing || existing.id === userId) {
-    return baseHandle
-  }
-
-  return `${baseHandle}-${userId.slice(0, 6)}`
-}
 
 // Creates or syncs the local User row from a verified auth context. Called on
 // every authenticated request so a fresh Supabase sign-up gets a User row
@@ -38,47 +28,36 @@ export async function upsertUserFromAccess(access) {
   const role = access.role || 'owner'
   const baseHandle = handleFromEmail(email)
 
-  const user = await prisma.user.upsert({
-    where: { id: access.userId },
-    create: {
-      id: access.userId,
-      email,
-      displayName,
-      handle: baseHandle,
-      role,
-    },
-    update: {
-      email,
-      displayName,
-      role,
-    },
-  })
+  const upsert = (handle) =>
+    prisma.user.upsert({
+      where: { id: access.userId },
+      create: { id: access.userId, email, displayName, handle, role },
+      update: { email, displayName, role },
+    })
 
-  // Handle collision fallback only when the upsert created a conflicting handle
-  // (rare: two users sharing an email prefix). Resolves afterwards to keep the
-  // hot path single-statement.
-  if (user.handle !== baseHandle) {
+  try {
+    const user = await upsert(baseHandle)
+    return toPublicUser(user)
+  } catch (error) {
+    if (error.code !== 'P2002') {
+      throw error
+    }
+
+    // Handle already claimed by another user (shared email prefix). If it's our
+    // own row (race on the update path), return it; otherwise fall back to a
+    // unique suffix derived from the user id.
+    const existing = await prisma.user.findFirst({ where: { handle: baseHandle } })
+    if (existing?.id === access.userId) {
+      return toPublicUser(existing)
+    }
+
+    const uniqueHandle = `${baseHandle}-${access.userId.slice(0, 6)}`
+    const user = await upsert(uniqueHandle)
     return toPublicUser(user)
   }
-
-  const existing = await prisma.user.findUnique({ where: { handle: baseHandle } })
-
-  if (!existing || existing.id === user.id) {
-    return toPublicUser(user)
-  }
-
-  const uniqueHandle = await resolveUniqueHandle(baseHandle, user.id)
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: { handle: uniqueHandle },
-  })
-
-  return toPublicUser(updated)
 }
 
 export async function getPublicUserById(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   return user ? toPublicUser(user) : null
 }
-
-export { toPublicUser }
