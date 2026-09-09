@@ -7,16 +7,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model WorkspaceSnapshot {
+model User {
+  id          String   @id // Supabase auth user id (sub)
+  email       String   @unique
+  displayName String
+  handle      String   @unique
+  role        String   @default("owner") // app role: owner | admin (surface/RBAC)
+  avatarUrl   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace     Workspace?
+  notebooks     Notebook[]
+  characters    Character[]
+  roadmapNodes  RoadmapNode[]
+  socialProfile SocialProfile?
+}
+
+model Workspace {
   id        String   @id @default(cuid())
-  key       String   @unique
+  userId    String   @unique
   payload   Json
-  updatedAt DateTime @updatedAt
+  version   Int      @default(1)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notebook {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapters  Chapter[]
+}
+
+model Chapter {
+  id           String    @id @default(cuid())
+  notebookId   String
+  title        String
+  content      String    @default("")
+  wordCount    Int       @default(0)
+  version      Int       @default(1)
+  lastEditedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  notebook     Notebook  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+}
+
+model Character {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  role      String
+  category  String
+  style     String
+  avatarImg String?
+  traits    Json
+  backstory String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RoadmapNode {
+  id                 String   @id @default(cuid())
+  userId             String
+  chapterTitle       String
+  plotSummary        String
+  linkedCharacterIds Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SocialProfile {
   id          String   @id @default(cuid())
+  userId      String   @unique
   writerId    String   @unique
   displayName String
   handle      String   @unique
@@ -24,6 +95,7 @@ model SocialProfile {
   bio         String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   statuses   SocialStatus[]
   highlights SocialHighlight[]
@@ -34,13 +106,13 @@ model SocialProfile {
 }
 
 model SocialStats {
-  id         String        @id @default(cuid())
-  profileId  String        @unique
-  followers  Int           @default(0)
-  following  Int           @default(0)
-  profile    SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id        String        @id @default(cuid())
+  profileId String        @unique
+  followers Int           @default(0)
+  following Int           @default(0)
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model SocialStatus {
