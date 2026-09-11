@@ -15,13 +15,19 @@ const fakeState = {
   nodes: [],
   notebooks: [],
   chapters: [],
+  messages: [],
   failCharacterCreate: false,
   failChapterUpdate: false,
+  failMessage: false,
+  holdMessage: false,
+  releaseMessage: null,
+  signalMessageRequest: null,
 }
 let charSeq = 0
 let nodeSeq = 0
 let nbSeq = 0
 let chSeq = 0
+let msgSeq = 0
 
 const json = (body, status = 200) => ({
   ok: status >= 200 && status < 300,
@@ -91,6 +97,34 @@ global.fetch = async (url, init = {}) => {
     }
     fakeState.chapters.push(chapter)
     b = { ok: true, chapter }
+  } else if (method === 'POST' && path === '/socials/messages') {
+    if (fakeState.failMessage) {
+      status = 500
+      b = { ok: false, message: 'message failed' }
+    } else {
+      msgSeq += 1
+      const message = {
+        id: `msg-${msgSeq}`,
+        senderName: body.senderName,
+        text: body.text,
+        createdAt: new Date().toISOString(),
+        read: false,
+      }
+      fakeState.messages.push(message)
+      b = { ok: true, message }
+
+      if (fakeState.holdMessage) {
+        fakeState.holdMessage = false
+        // Tell the test the request has arrived, then hold the response open so
+        // it can inspect the optimistic (still "sending") state.
+        fakeState.signalMessageRequest?.()
+        fakeState.signalMessageRequest = null
+
+        return new Promise((resolve) => {
+          fakeState.releaseMessage = () => resolve(json(b, status))
+        })
+      }
+    }
   } else if (method === 'PATCH' && path.match(/^\/manuscript\/chapters\/[^/]+$/)) {
     if (fakeState.failChapterUpdate) {
       status = 500
@@ -214,6 +248,57 @@ fakeState.failChapterUpdate = false
 check('saveManuscript failure returns false', saveFail === false)
 check('cloudStatus Sync Failed', getState().sync.cloudStatus === 'Sync Failed')
 check('lastError set on save failure', getState().sync.lastError === 'Unable to update chapter.')
+
+console.log('--- chat: optimistic send, live append, retry ---')
+resetStore()
+fakeState.messages = []
+
+// Optimistic: hold the response open and assert the pending bubble exists.
+// (The request fires after an async hop, so wait for the mock to see it.)
+fakeState.holdMessage = true
+const messageRequestArrived = new Promise((resolve) => {
+  fakeState.signalMessageRequest = resolve
+})
+const sendPromise = getState().sendSocialMessage({ senderName: 'Test Mage', text: 'hello there' })
+await messageRequestArrived
+const pending = getState().socials.messages[0]
+check(
+  'pending bubble appears before the server responds',
+  pending && pending.id.startsWith('pending-') && pending.sending === true && pending.text === 'hello there',
+)
+check('pending bubble is newest-first', getState().socials.messages.length === 1)
+
+fakeState.releaseMessage()
+const sendOk = await sendPromise
+const confirmed = getState().socials.messages[0]
+check('sendSocialMessage resolves true', sendOk === true)
+check(
+  'pending bubble replaced by server message',
+  confirmed.id === 'msg-1' && confirmed.sending === false && confirmed.failed === false,
+)
+check('no duplicate after confirm', getState().socials.messages.length === 1)
+
+// Live append (socket path) + dedupe when the same message arrives twice.
+getState().appendSocialMessage({ id: 'live-1', senderName: 'Follower', text: 'incoming', createdAt: new Date().toISOString(), read: false })
+getState().appendSocialMessage({ id: 'live-1', senderName: 'Follower', text: 'incoming', createdAt: new Date().toISOString(), read: false })
+const afterAppend = getState().socials.messages
+check('live append adds the incoming message', afterAppend.some((m) => m.id === 'live-1'))
+check('live append is deduped by id', afterAppend.filter((m) => m.id === 'live-1').length === 1)
+check('newest message is first', afterAppend[0].id === 'live-1' && afterAppend[1].id === 'msg-1')
+
+// Failure marks the bubble retryable; retry re-sends and confirms.
+fakeState.failMessage = true
+const failOk = await getState().sendSocialMessage({ senderName: 'Test Mage', text: 'will fail' })
+const failedMessage = getState().socials.messages.find((m) => m.text === 'will fail')
+check('sendSocialMessage resolves false on failure', failOk === false)
+check('failed bubble is flagged for retry', failedMessage.failed === true && failedMessage.sending === false)
+
+fakeState.failMessage = false
+const retryOk = await getState().retrySocialMessage(failedMessage.id)
+const retried = getState().socials.messages.find((m) => m.text === 'will fail')
+check('retrySocialMessage resolves true', retryOk === true)
+check('retried bubble is confirmed with a server id', retried.id === 'msg-2' && retried.failed === false)
+check('retry did not duplicate the bubble', getState().socials.messages.filter((m) => m.text === 'will fail').length === 1)
 
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)
