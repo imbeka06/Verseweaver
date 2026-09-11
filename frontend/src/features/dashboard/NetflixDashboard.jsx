@@ -31,6 +31,7 @@ function NetflixDashboard() {
     socials,
     role,
     surfaceMode,
+    authUserId,
     sync,
     setActiveTab,
     setSurfaceMode,
@@ -49,6 +50,8 @@ function NetflixDashboard() {
     createSocialPost,
     followWriter,
     sendSocialMessage,
+    appendSocialMessage,
+    retrySocialMessage,
     setCloudStatus,
     saveWorkspaceToBackend,
     loadWorkspaceFromBackend,
@@ -63,6 +66,7 @@ function NetflixDashboard() {
       socials: state.socials,
       role: state.auth.role,
       surfaceMode: state.auth.surfaceMode,
+      authUserId: state.auth.user?.id ?? null,
       sync: state.sync,
       setActiveTab: state.setActiveTab,
       setSurfaceMode: state.setSurfaceMode,
@@ -81,6 +85,8 @@ function NetflixDashboard() {
       createSocialPost: state.createSocialPost,
       followWriter: state.followWriter,
       sendSocialMessage: state.sendSocialMessage,
+      appendSocialMessage: state.appendSocialMessage,
+      retrySocialMessage: state.retrySocialMessage,
       setCloudStatus: state.setCloudStatus,
       saveWorkspaceToBackend: state.saveWorkspaceToBackend,
       loadWorkspaceFromBackend: state.loadWorkspaceFromBackend,
@@ -117,9 +123,13 @@ function NetflixDashboard() {
           <SocialsWorkspace
             socials={socials}
             role={role}
+            authUserId={authUserId}
             onCreatePost={createSocialPost}
             onFollowWriter={followWriter}
             onSendMessage={sendSocialMessage}
+            onAppendMessage={appendSocialMessage}
+            onRetryMessage={retrySocialMessage}
+            onRefreshSocials={loadSocialsFromBackend}
           />
         )
       }
@@ -143,9 +153,13 @@ function NetflixDashboard() {
         <SocialsWorkspace
           socials={socials}
           role={role}
+          authUserId={authUserId}
           onCreatePost={createSocialPost}
           onFollowWriter={followWriter}
           onSendMessage={sendSocialMessage}
+          onAppendMessage={appendSocialMessage}
+          onRetryMessage={retrySocialMessage}
+          onRefreshSocials={loadSocialsFromBackend}
         />
       )
     }
