@@ -290,6 +290,13 @@ const mergeById = (list, item) =>
     ? list.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry))
     : [...list, item]
 
+// socials.messages keeps the backend's order (newest first), so a brand-new
+// message goes to the front rather than the back of the list.
+const upsertMessageNewestFirst = (messages, message) =>
+  messages.some((entry) => entry.id === message.id)
+    ? messages.map((entry) => (entry.id === message.id ? { ...entry, ...message } : entry))
+    : [message, ...messages]
+
 const useVerseStore = create((set, get) => ({
   characters: initialCharacters,
   roadmapNodes: initialRoadmapNodes,
@@ -954,14 +961,89 @@ const useVerseStore = create((set, get) => ({
     }
   },
 
+  appendSocialMessage: (message) =>
+    set((state) => ({
+      socials: {
+        ...state.socials,
+        messages: upsertMessageNewestFirst(state.socials.messages, message),
+      },
+    })),
+
+  // Optimistic send: the bubble appears immediately as "sending", then the
+  // pending entry is swapped for the server's message (or flagged as failed).
   sendSocialMessage: async ({ senderName, text }) => {
+    const pendingId = `pending-${crypto.randomUUID()}`
+
+    set((state) => ({
+      socials: {
+        ...state.socials,
+        messages: [
+          {
+            id: pendingId,
+            senderName,
+            text,
+            createdAt: new Date().toISOString(),
+            sending: true,
+            failed: false,
+          },
+          ...state.socials.messages,
+        ],
+      },
+    }))
+
+    return get().deliverSocialMessage(pendingId, { senderName, text })
+  },
+
+  deliverSocialMessage: async (pendingId, { senderName, text }) => {
     try {
       const response = await sendDirectMessage({ senderName, text })
-      set({ socials: response.socials ?? get().socials })
+      const confirmed = response.message ?? null
+
+      set((state) => ({
+        socials: {
+          ...state.socials,
+          messages: confirmed
+            ? state.socials.messages.map((message) =>
+                message.id === pendingId
+                  ? { ...confirmed, sending: false, failed: false }
+                  : message,
+              )
+            : state.socials.messages,
+        },
+      }))
+
       return true
     } catch {
+      set((state) => ({
+        socials: {
+          ...state.socials,
+          messages: state.socials.messages.map((message) =>
+            message.id === pendingId ? { ...message, sending: false, failed: true } : message,
+          ),
+        },
+      }))
+
       return false
     }
+  },
+
+  retrySocialMessage: async (pendingId) => {
+    const message = get().socials.messages.find((entry) => entry.id === pendingId)
+    if (!message) return false
+
+    set((state) => ({
+      socials: {
+        ...state.socials,
+        messages: state.socials.messages.map((entry) =>
+          entry.id === pendingId ? { ...entry, sending: true, failed: false } : entry,
+        ),
+      },
+    }))
+
+    return get().deliverSocialMessage(pendingId, {
+      senderName: message.senderName,
+      text: message.text,
+    })
   },
 
   likeSocialPost: async (postId) => {
