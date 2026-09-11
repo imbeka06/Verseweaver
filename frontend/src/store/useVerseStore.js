@@ -1,8 +1,20 @@
 import { create } from 'zustand'
 import { fetchCurrentUser } from '../api/authApi'
-import { fetchCharacters } from '../api/charactersApi'
-import { fetchManuscript } from '../api/manuscriptApi'
-import { fetchRoadmap } from '../api/roadmapApi'
+import {
+  createCharacter as createCharacterApi,
+  fetchCharacters,
+  updateCharacter as updateCharacterApi,
+} from '../api/charactersApi'
+import {
+  createChapter as createChapterApi,
+  createNotebook as createNotebookApi,
+  fetchManuscript,
+  updateChapter as updateChapterApi,
+} from '../api/manuscriptApi'
+import {
+  createRoadmapNode as createRoadmapNodeApi,
+  fetchRoadmap,
+} from '../api/roadmapApi'
 import {
   createSocialPost as createSocialPostApi,
   fetchSocialsOverview,
@@ -495,35 +507,60 @@ const useVerseStore = create((set, get) => ({
       characters: mergeById(state.characters, character),
     })),
 
-  addCharacter: (character) =>
-    set((state) => ({
-      characters: [...state.characters, { ...character, id: character.id ?? crypto.randomUUID() }],
-    })),
+  addCharacter: async (character) => {
+    try {
+      const { character: created } = await createCharacterApi(character)
+      set((state) => ({ characters: mergeById(state.characters, created) }))
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, lastError: error.message || 'Failed to create character.' },
+      }))
+      return false
+    }
+  },
 
-  updateCharacterStatus: (characterId, status) =>
+  updateCharacterStatus: async (characterId, status) => {
+    // Update locally first so the list reacts immediately, then persist.
     set((state) => ({
       characters: state.characters.map((character) =>
         character.id === characterId ? { ...character, status } : character,
       ),
-    })),
+    }))
+
+    try {
+      const { character } = await updateCharacterApi(characterId, { status })
+      set((state) => ({ characters: mergeById(state.characters, character) }))
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, lastError: error.message || 'Failed to update character.' },
+      }))
+      return false
+    }
+  },
 
   upsertRoadmapNode: (roadmapNode) =>
     set((state) => ({
       roadmapNodes: mergeById(state.roadmapNodes, roadmapNode),
     })),
 
-  addRoadmapNode: ({ chapterTitle, plotSummary, linkedCharacterIds }) =>
-    set((state) => ({
-      roadmapNodes: [
-        ...state.roadmapNodes,
-        {
-          id: `node-${String(state.roadmapNodes.length + 1).padStart(2, '0')}`,
-          chapterTitle,
-          plotSummary,
-          linkedCharacterIds,
-        },
-      ],
-    })),
+  addRoadmapNode: async ({ chapterTitle, plotSummary, linkedCharacterIds }) => {
+    try {
+      const { node } = await createRoadmapNodeApi({
+        chapterTitle,
+        plotSummary,
+        linkedCharacterIds,
+      })
+      set((state) => ({ roadmapNodes: mergeById(state.roadmapNodes, node) }))
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, lastError: error.message || 'Failed to create roadmap node.' },
+      }))
+      return false
+    }
+  },
 
   linkCharacterToNode: (nodeId, characterId) =>
     set((state) => ({
@@ -581,45 +618,40 @@ const useVerseStore = create((set, get) => ({
       }
     }),
 
-  createNotebook: (name) =>
-    set((state) => {
-      const notebookName = name?.trim() || `Notebook ${state.manuscript.notebooks.length + 1}`
-      const notebookId = crypto.randomUUID()
-      const chapterId = crypto.randomUUID()
+  createNotebook: async (name) => {
+    try {
+      const notebookName = name?.trim() || `Notebook ${get().manuscript.notebooks.length + 1}`
+      const { notebook, chapters } = await createNotebookApi({
+        name: notebookName,
+        firstChapterTitle: 'Chapter 1',
+      })
+      const createdChapters = Array.isArray(chapters) ? chapters : []
 
-      const notebooks = [
-        ...state.manuscript.notebooks,
-        {
-          id: notebookId,
-          name: notebookName,
-          chapterIds: [chapterId],
-        },
-      ]
+      set((state) => {
+        const activeChapter = createdChapters[0]
 
-      const chapters = [
-        ...state.manuscript.chapters,
-        {
-          id: chapterId,
-          notebookId,
-          title: 'Chapter 1',
-          content: '<p></p>',
-          lastEditedAt: null,
-        },
-      ]
+        return {
+          manuscript: {
+            ...state.manuscript,
+            notebooks: [...state.manuscript.notebooks, notebook],
+            chapters: [...state.manuscript.chapters, ...createdChapters],
+            activeNotebookId: notebook.id,
+            activeChapterId: activeChapter?.id ?? state.manuscript.activeChapterId,
+            title: activeChapter?.title ?? state.manuscript.title,
+            content: activeChapter?.content ?? state.manuscript.content,
+            wordCount: deriveWordCount(activeChapter?.content),
+          },
+        }
+      })
 
-      return {
-        manuscript: {
-          ...state.manuscript,
-          notebooks,
-          chapters,
-          activeNotebookId: notebookId,
-          activeChapterId: chapterId,
-          title: 'Chapter 1',
-          content: '<p></p>',
-          wordCount: 0,
-        },
-      }
-    }),
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, lastError: error.message || 'Failed to create notebook.' },
+      }))
+      return false
+    }
+  },
 
   selectNotebook: (notebookId) =>
     set((state) => {
@@ -652,44 +684,40 @@ const useVerseStore = create((set, get) => ({
       }
     }),
 
-  createChapter: (title) =>
-    set((state) => {
-      const chapterTitle = title?.trim() || `Chapter ${state.manuscript.chapters.length + 1}`
-      const chapterId = crypto.randomUUID()
-      const notebookId = state.manuscript.activeNotebookId
+  createChapter: async (title) => {
+    try {
+      const chapterTitle = title?.trim() || `Chapter ${get().manuscript.chapters.length + 1}`
+      const notebookId = get().manuscript.activeNotebookId
+      const { chapter } = await createChapterApi(notebookId, { title: chapterTitle })
 
-      const chapters = [
-        ...state.manuscript.chapters,
-        {
-          id: chapterId,
-          notebookId,
-          title: chapterTitle,
-          content: '<p></p>',
-          lastEditedAt: null,
-        },
-      ]
+      set((state) => {
+        const notebooks = state.manuscript.notebooks.map((notebook) =>
+          notebook.id === notebookId
+            ? { ...notebook, chapterIds: [...notebook.chapterIds, chapter.id] }
+            : notebook,
+        )
 
-      const notebooks = state.manuscript.notebooks.map((notebook) =>
-        notebook.id === notebookId
-          ? {
-              ...notebook,
-              chapterIds: [...notebook.chapterIds, chapterId],
-            }
-          : notebook,
-      )
+        return {
+          manuscript: {
+            ...state.manuscript,
+            notebooks,
+            chapters: [...state.manuscript.chapters, chapter],
+            activeChapterId: chapter.id,
+            title: chapter.title,
+            content: chapter.content,
+            wordCount: deriveWordCount(chapter.content),
+          },
+        }
+      })
 
-      return {
-        manuscript: {
-          ...state.manuscript,
-          notebooks,
-          chapters,
-          activeChapterId: chapterId,
-          title: chapterTitle,
-          content: '<p></p>',
-          wordCount: 0,
-        },
-      }
-    }),
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, lastError: error.message || 'Failed to create chapter.' },
+      }))
+      return false
+    }
+  },
 
   selectChapter: (chapterId) =>
     set((state) => {
@@ -716,7 +744,12 @@ const useVerseStore = create((set, get) => ({
       },
     })),
 
-  saveManuscript: () =>
+  saveManuscript: async () => {
+    const { activeChapterId, chapters, title, content } = get().manuscript
+    const activeChapter = chapters.find((chapter) => chapter.id === activeChapterId)
+
+    // Stamp the local draft immediately so the editor shows a save even if the
+    // network write fails afterwards.
     set((state) => ({
       manuscript: {
         ...state.manuscript,
@@ -725,9 +758,43 @@ const useVerseStore = create((set, get) => ({
       sync: {
         ...state.sync,
         localDraftVersion: state.sync.localDraftVersion + 1,
-        cloudStatus: 'Synced Locally',
+        cloudStatus: 'Syncing...',
+        lastError: null,
       },
-    })),
+    }))
+
+    if (!activeChapter) return false
+
+    try {
+      const { chapter } = await updateChapterApi(activeChapterId, {
+        title,
+        content,
+        expectedVersion: activeChapter.version ?? null,
+      })
+
+      set((state) => ({
+        manuscript: {
+          ...state.manuscript,
+          chapters: state.manuscript.chapters.map((item) =>
+            item.id === chapter.id ? chapter : item,
+          ),
+          wordCount: deriveWordCount(chapter.content),
+        },
+        sync: { ...state.sync, cloudStatus: 'Synced To Backend', lastError: null },
+      }))
+
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: {
+          ...state.sync,
+          cloudStatus: 'Sync Failed',
+          lastError: error.message || 'Failed to save manuscript.',
+        },
+      }))
+      return false
+    }
+  },
 
   setCloudStatus: (status) =>
     set((state) => ({
