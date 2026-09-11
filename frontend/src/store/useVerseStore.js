@@ -1,14 +1,20 @@
 import { create } from 'zustand'
+import { fetchCurrentUser } from '../api/authApi'
+import { fetchCharacters } from '../api/charactersApi'
+import { fetchManuscript } from '../api/manuscriptApi'
+import { fetchRoadmap } from '../api/roadmapApi'
 import {
-  createSocialPost,
+  createSocialPost as createSocialPostApi,
   fetchSocialsOverview,
   followWriter as followWriterApi,
+  likeSocialPost,
   sendDirectMessage,
+  unlikeSocialPost,
 } from '../api/socialsApi'
 import { fetchWorkspace, saveWorkspace } from '../api/workspaceApi'
+import { supabase } from '../lib/supabase'
 
 const AUTH_STORAGE_KEY = 'verseweaver-auth'
-const ACCOUNTS_STORAGE_KEY = 'verseweaver-accounts'
 
 const isBrowser = typeof window !== 'undefined'
 
@@ -211,11 +217,6 @@ const deriveWordCount = (htmlContent) => {
     .filter(Boolean).length
 }
 
-const getAccessContext = (state) => ({
-  role: state.auth.role,
-  userId: state.auth.user?.email || 'anonymous',
-})
-
 const normalizeManuscript = (incomingManuscript) => {
   const source = incomingManuscript ?? initialManuscript
 
@@ -306,91 +307,119 @@ const useVerseStore = create((set, get) => ({
       },
     })),
 
-  login: async ({ email, password }) => {
-    const normalizedEmail = email.trim().toLowerCase()
-    const accounts = readJsonStorage(ACCOUNTS_STORAGE_KEY, [])
+  completeAuthentication: async () => {
+    try {
+      const { user, access } = await fetchCurrentUser()
 
-    const account = accounts.find((entry) => entry.email === normalizedEmail)
-    if (!account || account.password !== password) {
+      const nextAuth = {
+        isAuthenticated: true,
+        mode: 'login',
+        user,
+        error: null,
+        role: access?.role || 'owner',
+        surfaceMode: access?.role === 'owner' || access?.role === 'admin' ? 'hybrid' : 'socials',
+      }
+
+      persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
+      set({ auth: nextAuth })
+      await get().hydrateFromBackend()
+      return true
+    } catch (error) {
+      set((state) => ({
+        auth: { ...state.auth, error: error.message || 'Failed to load account.' },
+      }))
+      return false
+    }
+  },
+
+  login: async ({ email, password }) => {
+    if (!supabase) {
       set((state) => ({
         auth: {
           ...state.auth,
-          error: 'Invalid credentials. Please try again.',
+          error: 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
         },
       }))
       return false
     }
 
-    const nextAuth = {
-      isAuthenticated: true,
-      mode: 'login',
-      user: {
-        name: account.name,
-        email: account.email,
-      },
-      error: null,
-      role: 'owner',
-      surfaceMode: 'hybrid',
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      })
 
-    persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
-    set({ auth: nextAuth })
-    return true
+      if (error) {
+        set((state) => ({ auth: { ...state.auth, error: error.message } }))
+        return false
+      }
+
+      if (!data?.session) {
+        set((state) => ({ auth: { ...state.auth, error: 'No session returned. Try again.' } }))
+        return false
+      }
+
+      return get().completeAuthentication()
+    } catch (error) {
+      set((state) => ({ auth: { ...state.auth, error: error.message || 'Login failed.' } }))
+      return false
+    }
   },
 
   register: async ({ name, email, password }) => {
-    const normalizedEmail = email.trim().toLowerCase()
-    const displayName = name.trim()
-
-    const accounts = readJsonStorage(ACCOUNTS_STORAGE_KEY, [])
-    const alreadyExists = accounts.some((entry) => entry.email === normalizedEmail)
-
-    if (alreadyExists) {
+    if (!supabase) {
       set((state) => ({
         auth: {
           ...state.auth,
-          error: 'An account with this email already exists.',
+          error: 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
         },
       }))
       return false
     }
 
-    const updatedAccounts = [
-      ...accounts,
-      {
-        id: crypto.randomUUID(),
-        name: displayName,
-        email: normalizedEmail,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
         password,
-      },
-    ]
+        options: { data: { full_name: name.trim() } },
+      })
 
-    persistJsonStorage(ACCOUNTS_STORAGE_KEY, updatedAccounts)
+      if (error) {
+        set((state) => ({ auth: { ...state.auth, error: error.message } }))
+        return false
+      }
 
-    const nextAuth = {
-      isAuthenticated: true,
-      mode: 'register',
-      user: {
-        name: displayName,
-        email: normalizedEmail,
-      },
-      error: null,
-      role: 'owner',
-      surfaceMode: 'hybrid',
+      if (data?.session) {
+        return get().completeAuthentication()
+      }
+
+      set((state) => ({
+        auth: { ...state.auth, error: 'Check your email to confirm your account.' },
+      }))
+      return false
+    } catch (error) {
+      set((state) => ({ auth: { ...state.auth, error: error.message || 'Registration failed.' } }))
+      return false
     }
-
-    persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
-    set({ auth: nextAuth })
-    return true
   },
 
-  logout: () => {
-    const nextAuth = {
-      ...initialAuth,
-      mode: 'login',
+  logout: async () => {
+    if (supabase) {
+      await supabase.auth.signOut().catch(() => {})
     }
+
+    const nextAuth = { ...initialAuth, mode: 'login' }
     persistJsonStorage(AUTH_STORAGE_KEY, nextAuth)
     set({ auth: nextAuth })
+  },
+
+  restoreSession: async () => {
+    if (!supabase) return false
+
+    const { data } = await supabase.auth.getSession()
+    if (!data?.session) return false
+
+    return get().completeAuthentication()
   },
 
   setViewerRole: (role) =>
@@ -729,91 +758,58 @@ const useVerseStore = create((set, get) => ({
           : state.roadmapNodes,
     })),
 
-  saveWorkspaceToBackend: async () => {
-    const snapshot = get()
-    const payload = {
-      workspace: snapshot.workspace,
-      manuscript: snapshot.manuscript,
-      sync: {
-        ...snapshot.sync,
-        cloudStatus: 'Synced To Backend',
-        lastError: null,
-      },
-      socials: snapshot.socials,
-      characters: snapshot.characters,
-      roadmapNodes: snapshot.roadmapNodes,
-    }
+  hydrateFromBackend: async () => {
+    const results = await Promise.allSettled([
+      get().loadManuscriptFromBackend(),
+      get().loadCharactersFromBackend(),
+      get().loadRoadmapFromBackend(),
+      get().loadSocialsFromBackend(),
+      get().loadWorkspaceFromBackend(),
+    ])
+    return results.every((result) => result.status === 'fulfilled')
+  },
 
-    set((state) => ({
-      sync: {
-        ...state.sync,
-        cloudStatus: 'Syncing...',
-        lastError: null,
-      },
-    }))
-
+  loadManuscriptFromBackend: async () => {
     try {
-      await saveWorkspace(payload, getAccessContext(snapshot))
-      set((state) => ({
-        sync: {
-          ...state.sync,
-          cloudStatus: 'Synced To Backend',
-          lastError: null,
-        },
-      }))
+      const { manuscript } = await fetchManuscript()
+      if (manuscript) {
+        set((state) => ({
+          manuscript: normalizeManuscript({ ...state.manuscript, ...manuscript }),
+        }))
+      }
       return true
-    } catch (error) {
-      set((state) => ({
-        sync: {
-          ...state.sync,
-          cloudStatus: 'Sync Failed',
-          lastError: error.message,
-        },
-      }))
+    } catch {
       return false
     }
   },
 
-  loadWorkspaceFromBackend: async () => {
-    set((state) => ({
-      sync: {
-        ...state.sync,
-        cloudStatus: 'Loading Backend Data...',
-        lastError: null,
-      },
-    }))
-
+  loadCharactersFromBackend: async () => {
     try {
-      const remoteWorkspace = await fetchWorkspace(getAccessContext(get()))
-
-      if (remoteWorkspace) {
-        get().hydrateWorkspace(remoteWorkspace)
-      } else {
-        set((state) => ({
-          sync: {
-            ...state.sync,
-            cloudStatus: 'No Remote Workspace Found',
-            lastError: null,
-          },
-        }))
+      const { characters } = await fetchCharacters()
+      if (Array.isArray(characters)) {
+        set({ characters })
       }
-
       return true
-    } catch (error) {
-      set((state) => ({
-        sync: {
-          ...state.sync,
-          cloudStatus: 'Load Failed',
-          lastError: error.message,
-        },
-      }))
+    } catch {
+      return false
+    }
+  },
+
+  loadRoadmapFromBackend: async () => {
+    try {
+      const { roadmapNodes } = await fetchRoadmap()
+      if (Array.isArray(roadmapNodes)) {
+        set({ roadmapNodes })
+      }
+      return true
+    } catch {
       return false
     }
   },
 
   loadSocialsFromBackend: async () => {
     try {
-      const response = await fetchSocialsOverview(getAccessContext(get()))
+      const response = await fetchSocialsOverview()
       set((state) => ({
         socials: response.socials ?? state.socials,
       }))
@@ -823,16 +819,58 @@ const useVerseStore = create((set, get) => ({
     }
   },
 
+  loadWorkspaceFromBackend: async () => {
+    set((state) => ({
+      sync: { ...state.sync, cloudStatus: 'Loading Backend Data...', lastError: null },
+    }))
+
+    try {
+      const payload = await fetchWorkspace()
+      const workspace = payload?.workspace
+
+      if (workspace) {
+        set((state) => ({
+          workspace: { ...state.workspace, ...workspace },
+          sync: { ...state.sync, cloudStatus: 'Loaded From Backend', lastError: null },
+        }))
+      } else {
+        set((state) => ({
+          sync: { ...state.sync, cloudStatus: 'No Remote Workspace Found', lastError: null },
+        }))
+      }
+
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, cloudStatus: 'Load Failed', lastError: error.message },
+      }))
+      return false
+    }
+  },
+
+  saveWorkspaceToBackend: async () => {
+    set((state) => ({
+      sync: { ...state.sync, cloudStatus: 'Syncing...', lastError: null },
+    }))
+
+    try {
+      await saveWorkspace(get().workspace)
+      set((state) => ({
+        sync: { ...state.sync, cloudStatus: 'Synced To Backend', lastError: null },
+      }))
+      return true
+    } catch (error) {
+      set((state) => ({
+        sync: { ...state.sync, cloudStatus: 'Sync Failed', lastError: error.message },
+      }))
+      return false
+    }
+  },
+
   createSocialPost: async ({ excerpt, mediaUrl }) => {
     try {
-      const socials = await createSocialPost(
-        {
-          excerpt,
-          mediaUrl,
-        },
-        getAccessContext(get()),
-      )
-      set({ socials })
+      const response = await createSocialPostApi({ excerpt, mediaUrl })
+      set({ socials: response.socials ?? get().socials })
       return true
     } catch {
       return false
@@ -841,8 +879,8 @@ const useVerseStore = create((set, get) => ({
 
   followWriter: async (followerName) => {
     try {
-      const socials = await followWriterApi(followerName, getAccessContext(get()))
-      set({ socials })
+      const response = await followWriterApi(followerName)
+      set({ socials: response.socials ?? get().socials })
       return true
     } catch {
       return false
@@ -851,14 +889,38 @@ const useVerseStore = create((set, get) => ({
 
   sendSocialMessage: async ({ senderName, text }) => {
     try {
-      const socials = await sendDirectMessage(
-        {
-          senderName,
-          text,
+      const response = await sendDirectMessage({ senderName, text })
+      set({ socials: response.socials ?? get().socials })
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  likeSocialPost: async (postId) => {
+    try {
+      const response = await likeSocialPost(postId)
+      set((state) => ({
+        socials: {
+          ...state.socials,
+          posts: state.socials.posts.map((post) => (post.id === postId ? response.post : post)),
         },
-        getAccessContext(get()),
-      )
-      set({ socials })
+      }))
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  unlikeSocialPost: async (postId) => {
+    try {
+      const response = await unlikeSocialPost(postId)
+      set((state) => ({
+        socials: {
+          ...state.socials,
+          posts: state.socials.posts.map((post) => (post.id === postId ? response.post : post)),
+        },
+      }))
       return true
     } catch {
       return false
